@@ -124,7 +124,7 @@ class TrayMenuManager:
         
         status = "已启用热键" if app_state.enabled else "已暂停热键"
         icon.menu = self.build_menu()
-        self.notification_manager.notify("MD2DOCX HotPaste", status, ok=app_state.enabled)
+        self.notification_manager.notify("PasteMD", status, ok=app_state.enabled)
     
     def _on_set_hotkey(self, icon, item):
         """设置热键"""
@@ -145,13 +145,13 @@ class TrayMenuManager:
                 
                 log(f"Hotkey changed to: {new_hotkey}")
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     f"热键已更新为：{new_hotkey}",
                     ok=True)
             except Exception as e:
                 log(f"Failed to save hotkey: {e}")
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     f"保存热键失败：{str(e)}",
                     ok=False)
                 raise
@@ -166,7 +166,7 @@ class TrayMenuManager:
             dialog.show()
         except Exception as e:
             log(f"Failed to show hotkey dialog: {e}")
-            self.notification_manager.notify("MD2DOCX HotPaste", f"打开热键设置失败：{str(e)}", ok=False)
+            self.notification_manager.notify("PasteMD", f"打开热键设置失败：{str(e)}", ok=False)
     
     def _on_toggle_notify(self, icon, item):
         """切换通知状态"""
@@ -175,7 +175,7 @@ class TrayMenuManager:
         self._save_config()
         icon.menu = self.build_menu()
         if app_state.config["notify"]:
-            self.notification_manager.notify("MD2DOCX HotPaste", "已开启通知", ok=True)
+            self.notification_manager.notify("PasteMD", "已开启通知", ok=True)
         else:
             log("Notifications disabled via tray toggle")
     
@@ -186,7 +186,7 @@ class TrayMenuManager:
         self._save_config()
         icon.menu = self.build_menu()
         status = "已开启无应用时自动打开" if app_state.config["auto_open_on_no_app"] else "已关闭无应用时自动打开"
-        self.notification_manager.notify("MD2DOCX HotPaste", status, ok=True)
+        self.notification_manager.notify("PasteMD", status, ok=True)
         
     def _on_toggle_excel(self, icon, item):
         """切换启用 Excel 插入"""
@@ -194,7 +194,7 @@ class TrayMenuManager:
         app_state.config["enable_excel"] = not current
         self._save_config()
         icon.menu = self.build_menu()
-        self.notification_manager.notify("MD2DOCX HotPaste", f"Excel 插入功能：{'开启' if not current else '关闭'}", ok=True)
+        self.notification_manager.notify("PasteMD", f"Excel 插入功能：{'开启' if not current else '关闭'}", ok=True)
         
     def _on_toggle_excel_format(self, icon, item):
         """切换 Excel 粘贴时是否保留格式"""
@@ -202,7 +202,7 @@ class TrayMenuManager:
         app_state.config["excel_keep_format"] = not current
         self._save_config()
         icon.menu = self.build_menu()
-        self.notification_manager.notify("MD2DOCX HotPaste", f"Excel 格式保留：{'开启' if not current else '关闭'}", ok=True)
+        self.notification_manager.notify("PasteMD", f"Excel 格式保留：{'开启' if not current else '关闭'}", ok=True)
     
     def _on_toggle_keep(self, icon, item):
         """切换保留文件状态"""
@@ -211,7 +211,7 @@ class TrayMenuManager:
         self._save_config()
         icon.menu = self.build_menu()
         status = "保留文件：开启" if app_state.config["keep_file"] else "保留文件：关闭"
-        self.notification_manager.notify("MD2DOCX HotPaste", status, ok=True)
+        self.notification_manager.notify("PasteMD", status, ok=True)
     
     def _on_open_save_dir(self, icon, item):
         """打开保存目录"""
@@ -244,10 +244,10 @@ class TrayMenuManager:
             if self.restart_hotkey_callback:
                 self.restart_hotkey_callback()
             icon.menu = self.build_menu()
-            self.notification_manager.notify("MD2DOCX HotPaste", "配置已重载", ok=True)
+            self.notification_manager.notify("PasteMD", "配置已重载", ok=True)
         except Exception as e:
             log(f"Failed to reload config: {e}")
-            self.notification_manager.notify("MD2DOCX HotPaste", "配置重载失败", ok=False)
+            self.notification_manager.notify("PasteMD", "配置重载失败", ok=False)
     
     def _on_check_update(self, icon, item):
         """检查更新"""
@@ -264,7 +264,7 @@ class TrayMenuManager:
                     # 网络错误或检查失败
                     log("Version check failed - network error")
                     self.notification_manager.notify(
-                        "MD2DOCX HotPaste - 检查更新失败",
+                        "PasteMD - 检查更新失败",
                         "网络连接失败，请稍后再试",
                         ok=False
                     )
@@ -278,7 +278,7 @@ class TrayMenuManager:
                     # 通知用户有新版本，并自动打开下载页面
                     message = f"发现新版本 {latest_version}，正在为您打开下载页面..."
                     self.notification_manager.notify(
-                        "MD2DOCX HotPaste - 有新版本",
+                        "PasteMD - 有新版本",
                         message,
                         ok=True
                     )
@@ -296,13 +296,13 @@ class TrayMenuManager:
                     current_version = result.get("current_version")
                     log(f"Already on latest version: {current_version}")
                     self.notification_manager.notify(
-                        "MD2DOCX HotPaste - 已是最新版本",
+                        "PasteMD - 已是最新版本",
                         f"当前版本 {current_version} 已是最新版本",
                         ok=True
                     )
             except Exception as e:
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste - 更新检查失败",
+                    "PasteMD - 更新检查失败",
                     f"检查更新时出错：{str(e) if len(str(e)) <= 15 else str(e)[:12] + '...'}",
                     ok=False
                 )
@@ -321,7 +321,7 @@ class TrayMenuManager:
             except Exception as e:
                 log(f"Failed to open browser: {e}")
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     "无法打开浏览器，请手动访问 GitHub Releases 页面",
                     ok=False
                 )

@@ -1,27 +1,27 @@
-#define MyAppName "MD2DOCX HotPaste"
-#define MyAppVersion "0.1.4.0"
+#define MyAppName "PasteMD"
+#define MyAppVersion "0.1.4.1"
 #define MyAppPublisher "RichQAQ"
-#define MyAppExeName "MD2DOCX-HotPaste.exe"
+#define MyAppExeName "PasteMD.exe"
 ; AppUserModelID 用于 Win11 通知归属与图标
-#define MyAUMID        "RichQAQ.MD2DOCX_HotPaste"
+#define MyAUMID        "RichQAQ.PasteMD"
 
 ; 如果是 onefile，发行物在 dist
 #define BuildDir       "dist"
 ; 如果是 onedir，改为发行目录：例如
-; #define BuildDir     "dist\\MD2DOCX-HotPaste"
+; #define BuildDir     "dist\\PasteMD"
 
 ; ICO 源文件
 #define MyIconSrc      "assets\\icons\\logo.ico"
 
 [Setup]
-AppId={{87d83b72-8644-45ed-88d4-aa6c1ce7ce6b}}
+AppId={{4f3f2b18-55a3-4f40-98f6-d01a3e3e0220}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
 DefaultDirName={pf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
-OutputBaseFilename=MD2DOCX-HotPaste_pandoc-Setup_v{#MyAppVersion}
+OutputBaseFilename=PasteMD_pandoc-Setup_v{#MyAppVersion}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern

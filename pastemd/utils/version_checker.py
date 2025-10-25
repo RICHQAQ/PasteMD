@@ -11,7 +11,7 @@ from .logging import log
 class VersionChecker:
     """检查 GitHub 最新版本"""
     
-    GITHUB_API_URL = "https://api.github.com/repos/RICHQAQ/md2docx_hotpaste/releases/latest"
+    GITHUB_API_URL = "https://api.github.richqaq.cn/repos/RICHQAQ/PasteMD/releases/latest"
     TIMEOUT = 5  # 超时时间（秒）
     
     def __init__(self, current_version: str):
@@ -77,7 +77,7 @@ class VersionChecker:
         try:
             req = urllib.request.Request(
                 self.GITHUB_API_URL,
-                headers={"User-Agent": "MD2DOCX-HotPaste"}
+                headers={"User-Agent": "PasteMD"}
             )
             
             with urllib.request.urlopen(req, timeout=self.TIMEOUT) as response:

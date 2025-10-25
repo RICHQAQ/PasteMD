@@ -59,7 +59,7 @@ def _secs_to_win11_duration(secs: int | float) -> str:
 class NotificationManager:
     """通知管理器（异步队列 + 后台线程，不阻塞热键）"""
 
-    def __init__(self, app_name: str = "MD2DOCX HotPaste", max_queue: int = 30):
+    def __init__(self, app_name: str = "PasteMD", max_queue: int = 30):
         self.app_name = app_name
         self.icon_path = get_app_icon_path()
         self._q: "queue.Queue[tuple[str,str,bool]]" = queue.Queue(maxsize=max_queue)
@@ -140,7 +140,7 @@ class NotificationManager:
                 _ = _win11_toast(
                     title,
                     message,
-                    app_id="RichQAQ.MD2DOCX_HotPaste",
+                    app_id="RichQAQ.PasteMD",
                     icon=_icon_or_none(self.icon_path),
                     duration=_secs_to_win11_duration(NOTIFICATION_TIMEOUT),
                 )

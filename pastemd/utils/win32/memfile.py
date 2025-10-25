@@ -2,7 +2,7 @@
 import os, tempfile, time
 import win32file, win32con
 
-from md2docx_hotpaste.core.constants import DEFAULT_DELETE_RETRY, DEFAULT_DELETE_WAIT
+from pastemd.core.constants import DEFAULT_DELETE_RETRY, DEFAULT_DELETE_WAIT
 
 
 class EphemeralFile:

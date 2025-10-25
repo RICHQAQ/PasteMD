@@ -1,6 +1,7 @@
 """Windows window and process API utilities."""
 
 import os
+from time import sleep
 import psutil
 import win32gui
 import win32process
@@ -163,6 +164,7 @@ def cleanup_background_wps_processes(ep:int = 0) -> int:
         
         if cleaned_count > 0:
             if ep < 3:  # 限制递归深度，避免无限循环
+                sleep(0.15)  # 等待进程退出
                 cleanup_background_wps_processes(ep+1)  # 递归清理，直到没有可清理的进程
             log(f"Cleaned up {cleaned_count} background process(es)")
         

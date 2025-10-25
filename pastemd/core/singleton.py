@@ -16,7 +16,7 @@ ERROR_ALREADY_EXISTS = 183
 class SingleInstanceChecker:
     """检查和管理应用的单实例运行 - 使用 Windows Mutex"""
     
-    def __init__(self, app_name: str = "Global\\MD2DOCX-HotPaste-Mutex"):
+    def __init__(self, app_name: str = "Global\\PasteMD-Mutex"):
         self.app_name = app_name
         self.mutex_handle = None
     

@@ -13,7 +13,7 @@ class TrayRunner:
     def __init__(self, menu_manager: TrayMenuManager):
         self.menu_manager = menu_manager
     
-    def run(self, app_name: str = "MD2DOCX HotPaste") -> None:
+    def run(self, app_name: str = "PasteMD") -> None:
         """启动托盘图标"""
         # 创建初始图标
         tray_icon = create_status_icon(ok=True)

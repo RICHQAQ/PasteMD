@@ -1,6 +1,6 @@
-# MD2DOCX HotPaste
+# PasteMD
 <p align="center">
-  <img src="assets/icons/logo.png" alt="MD2DOCX HotPaste" width="160" height="160">
+  <img src="assets/icons/logo.png" alt="PasteMD" width="160" height="160">
 </p>
 
 一个常驻托盘的小工具：
@@ -30,11 +30,11 @@
 
 ## 🚀使用方法
 
-1. 下载可执行文件（[Releases 页面](https://github.com/RICHQAQ/md2docx_hotpaste/releases/)）：
+1. 下载可执行文件（[Releases 页面](https://github.com/RICHQAQ/PasteMD/releases/)）：
 
-   * **MD2DOCX-HotPaste\_vx.x.x.exe**：**便携版**，需要你本机已经安装好 **Pandoc** 并能在命令行运行。
+   * **PasteMD\_vx.x.x.exe**：**便携版**，需要你本机已经安装好 **Pandoc** 并能在命令行运行。
    若未安装，请到 [Pandoc 官网](https://pandoc.org/installing.html) 下载安装即可。
-   * **MD2DOCX-HotPaste\_pandoc-Setup.exe**：**一体化安装包**，自带 Pandoc，不需要另外配置环境。
+   * **PasteMD\_pandoc-Setup.exe**：**一体化安装包**，自带 Pandoc，不需要另外配置环境。
 
 2. 打开 Word、WPS 或 Excel，光标放在需要插入的位置。
 
@@ -57,7 +57,7 @@
   "hotkey": "<ctrl>+b",
   "pandoc_path": "pandoc",
   "reference_docx": null,
-  "save_dir": "%USERPROFILE%\\Documents\\md2docx_paste",
+  "save_dir": "%USERPROFILE%\\Documents\\pastemd",
   "keep_file": false,
   "notify": true,
   "enable_excel": true,
@@ -110,10 +110,10 @@ python main.py
 使用 PyInstaller：
 
 ```bash
-pyinstaller --clean -F -w -n MD2DOCX-HotPaste  --icon assets\icons\logo.ico  --add-data "assets\icons;assets\icons" --hidden-import plyer.platforms.win.notification  main.py
+pyinstaller --clean -F -w -n PasteMD  --icon assets\icons\logo.ico  --add-data "assets\icons;assets\icons" --hidden-import plyer.platforms.win.notification  main.py
 ```
 
-生成的程序在 `dist/MD2DOCX-HotPaste.exe`。
+生成的程序在 `dist/PasteMD.exe`。
 
 ---
 

@@ -39,7 +39,7 @@ class PasteWorkflow:
             # 1. 检查剪贴板
             if is_clipboard_empty():
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     "剪贴板为空，未处理。",
                     ok=False
                 )
@@ -67,14 +67,14 @@ class PasteWorkflow:
         except ClipboardError as e:
             log(f"Clipboard error: {e}")
             self.notification_manager.notify(
-                "MD2DOCX HotPaste",
+                "PasteMD",
                 "剪贴板读取失败。",
                 ok=False
             )
         except PandocError as e:
             log(f"Pandoc error: {e}")
             self.notification_manager.notify(
-                "MD2DOCX HotPaste",
+                "PasteMD",
                 "Markdown 转换失败，请检查格式。",
                 ok=False
             )
@@ -85,7 +85,7 @@ class PasteWorkflow:
             log(error_details.getvalue())
             
             self.notification_manager.notify(
-                "MD2DOCX HotPaste",
+                "PasteMD",
                 "转换失败，请查看日志。",
                 ok=False
             )
@@ -113,7 +113,7 @@ class PasteWorkflow:
         if table_data is None:
             # 不是有效的Markdown表格
             self.notification_manager.notify(
-                "MD2Excel HotPaste",
+                "PasteMD",
                 f"未检测到有效的 Markdown 表格。\n当前应用: {app_name}",
                 ok=False
             )
@@ -127,14 +127,14 @@ class PasteWorkflow:
             
             if success:
                 self.notification_manager.notify(
-                    "MD2Excel HotPaste",
+                    "PasteMD",
                     f"已插入 {len(table_data)} 行表格到 {app_name}。",
                     ok=True
                 )
         except InsertError as e:
             log(f"{app_name} insert failed: {e}")
             self.notification_manager.notify(
-                "MD2Excel HotPaste",
+                "PasteMD",
                 f"插入到 {app_name} 失败。\n{str(e)}",
                 ok=False
             )
@@ -177,7 +177,7 @@ class PasteWorkflow:
             except Exception as e:
                 log(f"Failed to save DOCX file: {e}")
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     "保存文档失败。",
                     ok=False
                 )
@@ -223,14 +223,14 @@ class PasteWorkflow:
         if inserted:
             app_name = "Word" if target == "word" else "WPS 文字"
             self.notification_manager.notify(
-                "MD2DOCX HotPaste",
+                "PasteMD",
                 f"已插入到 {app_name}。",
                 ok=True
             )
         else:
             app_name = "Word" if target == "word" else "WPS 文字"
             self.notification_manager.notify(
-                "MD2DOCX HotPaste",
+                "PasteMD",
                 f"未能插入到 {app_name}，请确认软件已打开且有光标。",
                 ok=False
             )
@@ -247,7 +247,7 @@ class PasteWorkflow:
         if not config.get("auto_open_on_no_app", True):
             log("auto_open_on_no_app is disabled, skipping")
             self.notification_manager.notify(
-                "MD2DOCX HotPaste",
+                "PasteMD",
                 "未检测到支持的应用。请打开 Word/WPS/Excel 或启用自动打开。",
                 ok=False
             )
@@ -294,27 +294,27 @@ class PasteWorkflow:
             # 4. 用默认应用打开
             if AppLauncher.awaken_and_open_document(output_path):
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     f"已生成文档并用默认应用打开。\n路径: {output_path}",
                     ok=True
                 )
             else:
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     f"文档已生成，但打开失败。\n路径: {output_path}",
                     ok=False
                 )
         except PandocError as e:
             log(f"Pandoc conversion failed: {e}")
             self.notification_manager.notify(
-                "MD2DOCX HotPaste",
+                "PasteMD",
                 "Markdown 转换失败，请检查格式。",
                 ok=False
             )
         except Exception as e:
             log(f"Failed to generate document: {e}")
             self.notification_manager.notify(
-                "MD2DOCX HotPaste",
+                "PasteMD",
                 "生成文档失败。",
                 ok=False
             )
@@ -332,7 +332,7 @@ class PasteWorkflow:
             table_data = parse_markdown_table(md_text)
             if table_data is None:
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     "未检测到有效的 Markdown 表格。",
                     ok=False
                 )
@@ -353,20 +353,20 @@ class PasteWorkflow:
             keep_format = config.get("excel_keep_format", True)
             if AppLauncher.generate_and_open_spreadsheet(table_data, output_path, keep_format):
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     f"已生成表格（{len(table_data)} 行）并用默认应用打开。\n路径: {output_path}",
                     ok=True
                 )
             else:
                 self.notification_manager.notify(
-                    "MD2DOCX HotPaste",
+                    "PasteMD",
                     f"表格已生成，但打开失败。\n路径: {output_path}",
                     ok=False
                 )
         except Exception as e:
             log(f"Failed to generate spreadsheet: {e}")
             self.notification_manager.notify(
-                "MD2DOCX HotPaste",
+                "PasteMD",
                 "生成表格失败。",
                 ok=False
             )

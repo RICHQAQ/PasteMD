@@ -216,19 +216,19 @@ __marimo__/
 .streamlit/secrets.toml
 
 config.json
-md2docx.log
+pastemd.log
 reference.docx
-Output/MD2DOCX-HotPaste_pandoc-Setup.exe
+Output/PasteMD_pandoc-Setup.exe
 third_party/pandoc-3.7.0.2-windows-x86_64.zip
 third_party/pandoc/COPYING.rtf
 third_party/pandoc/COPYRIGHT.txt
 third_party/pandoc/MANUAL.html
 third_party/pandoc/pandoc.exe
-Output/MD2DOCX-HotPaste-Setup.exe
+Output/PasteMD-Setup.exe
 Output/
 .idea/
 .idea/.gitignore
-.idea/md2docx_hotpaste.iml
+.idea/pastemd.iml
 .idea/misc.xml
 .idea/modules.xml
 .idea/vcs.xml

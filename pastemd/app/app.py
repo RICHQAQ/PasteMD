@@ -5,7 +5,7 @@ import sys
 
 try:
     import ctypes
-    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("RichQAQ.MD2DOCX_HotPaste")
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("RichQAQ.PasteMD")
 except Exception:
     pass
 
@@ -41,7 +41,7 @@ def show_startup_notification(notification_manager: NotificationManager) -> None
         # 确保图标路径存在（仅用于验证）
         get_app_icon_path()
         notification_manager.notify(
-            "MD2DOCX HotPaste",
+            "PasteMD",
             "启动成功，已经运行在后台。",
             ok=True
         )

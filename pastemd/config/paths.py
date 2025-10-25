@@ -6,9 +6,9 @@ import sys
 
 def get_base_dir() -> str:
     """获取应用程序基础目录"""
-    # 返回项目根目录（md2docx_hotpaste）
+    # 返回项目根目录（pastemd）
     current_file = os.path.abspath(__file__)
-    # 从 md2docx_hotpaste/config/paths.py 回到 md2docx_hotpaste/
+    # 从 pastemd/config/paths.py 回到 pastemd/
     return os.path.dirname(os.path.dirname(os.path.dirname(current_file)))
 
 
@@ -22,9 +22,9 @@ def resource_path(relative_path: str) -> str:
 def get_user_data_dir() -> str:
     """获取用户数据目录（跨平台）"""
     if sys.platform == "win32":
-        return os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "MD2DOCX-HotPaste")
+        return os.path.join(os.environ.get("APPDATA", os.path.expanduser("~")), "PasteMD")
     else:
-        return os.path.join(os.path.expanduser("~"), ".md2docx_hotpaste")
+        return os.path.join(os.path.expanduser("~"), ".pastemd")
 
 
 def ensure_user_data_dir():
@@ -44,7 +44,7 @@ def get_config_path() -> str:
 def get_log_path() -> str:
     """获取日志文件路径"""
     data_dir = ensure_user_data_dir()
-    return os.path.join(data_dir, "md2docx.log")
+    return os.path.join(data_dir, "pastemd.log")
 
 
 def get_app_icon_path() -> str:
