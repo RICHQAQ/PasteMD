@@ -7,3 +7,5 @@ Pillow
 plyer
 openpyxl
 python-docx
+beautifulsoup4
+lxml

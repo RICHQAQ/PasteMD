@@ -5,7 +5,7 @@ import io
 import os
 
 from ...utils.win32.detector import detect_active_app
-from ...utils.clipboard import get_clipboard_text, is_clipboard_empty
+from ...utils.clipboard import get_clipboard_text, is_clipboard_empty, is_clipboard_html, get_clipboard_html
 from ...utils.latex import convert_latex_delimiters
 from ...domains.awakener import AppLauncher
 from ...integrations.pandoc import PandocIntegration
@@ -46,23 +46,33 @@ class PasteWorkflow:
                 return
             
             # 2. 获取剪贴板内容和配置
-            md_text = get_clipboard_text()
             config = app_state.config
+            
+            # 2.1 检测是否为 HTML 富文本
+            is_html = is_clipboard_html()
+            log(f"Clipboard contains HTML: {is_html}")
             
             # 3. 检测当前活动应用
             target = detect_active_app()
             log(f"Detected active target: {target}")
             
-            # 4. 根据目标应用选择处理流程
-            if target in ("excel", "wps_excel") and config.get("enable_excel", True):
-                # Excel/WPS表格流程：直接插入表格数据
-                self._handle_excel_flow(md_text, target, config)
-            elif target in ("word", "wps"):
-                # Word/WPS文字流程：转换为DOCX后插入
-                self._handle_word_flow(md_text, target, config)
+            # 4. 根据剪贴板内容类型和目标应用选择处理流程
+            if is_html and target in ("word", "wps"):
+                # HTML 富文本流程：直接转换 HTML 为 DOCX
+                self._handle_html_to_word_flow(target, config)
             else:
-                # 未检测到应用，尝试自动打开预生成的文件
-                self._handle_no_app_flow(md_text, config)
+                # 原有的 Markdown 流程
+                md_text = get_clipboard_text()
+                
+                if target in ("excel", "wps_excel") and config.get("enable_excel", True):
+                    # Excel/WPS表格流程：直接插入表格数据
+                    self._handle_excel_flow(md_text, target, config)
+                elif target in ("word", "wps"):
+                    # Word/WPS文字流程：转换为DOCX后插入
+                    self._handle_word_flow(md_text, target, config)
+                else:
+                    # 未检测到应用，尝试自动打开预生成的文件
+                    self._handle_no_app_flow(md_text, config)
             
         except ClipboardError as e:
             log(f"Clipboard error: {e}")
@@ -136,6 +146,87 @@ class PasteWorkflow:
             self.notification_manager.notify(
                 "PasteMD",
                 f"插入到 {app_name} 失败。\n{str(e)}",
+                ok=False
+            )
+    
+    def _handle_html_to_word_flow(self, target: str, config: dict) -> None:
+        """
+        HTML 富文本流程：直接转换 HTML 为 DOCX 并插入到 Word/WPS
+        
+        Args:
+            target: 目标应用 (word 或 wps)
+            config: 配置字典
+        """
+        try:
+            # 1. 获取并清理 HTML 内容
+            html_text = get_clipboard_html()
+            log(f"Retrieved HTML from clipboard, length: {len(html_text)}")
+            
+            # 2. 生成 DOCX 字节流
+            self._ensure_pandoc_integration()
+            docx_bytes = self.pandoc_integration.convert_html_to_docx_bytes(
+                html_text=html_text,
+                reference_docx=config.get("reference_docx")
+            )
+            
+            # 3. 使用临时文件插入
+            temp_dir = config.get("temp_dir")  # 可选：支持 RAM 盘目录
+            with EphemeralFile(suffix=".docx", dir_=temp_dir) as eph:
+                eph.write_bytes(docx_bytes)
+                # 插入
+                inserted = self._perform_word_insertion(eph.path, target)
+            
+            # 4. 可选保存文件
+            if config.get("keep_file", False):
+                try:
+                    output_path = generate_output_path(
+                        keep_file=True,
+                        save_dir=config.get("save_dir", "")
+                    )
+                    with open(output_path, "wb") as f:
+                        f.write(docx_bytes)
+                    log(f"Saved HTML-converted DOCX to: {output_path}")
+                except Exception as e:
+                    log(f"Failed to save HTML-converted DOCX file: {e}")
+            
+            # 5. 显示结果通知
+            if inserted:
+                app_name = "Word" if target == "word" else "WPS 文字"
+                self.notification_manager.notify(
+                    "PasteMD",
+                    f"已从网页 HTML 插入到 {app_name}。",
+                    ok=True
+                )
+            else:
+                app_name = "Word" if target == "word" else "WPS 文字"
+                self.notification_manager.notify(
+                    "PasteMD",
+                    f"未能插入到 {app_name}，请确认软件已打开且有光标。",
+                    ok=False
+                )
+                
+        except ClipboardError as e:
+            log(f"Failed to get HTML from clipboard: {e}")
+            self.notification_manager.notify(
+                "PasteMD",
+                "读取剪贴板 HTML 内容失败。",
+                ok=False
+            )
+        except PandocError as e:
+            log(f"HTML to DOCX conversion failed: {e}")
+            self.notification_manager.notify(
+                "PasteMD",
+                "HTML 转换失败，请检查内容格式。",
+                ok=False
+            )
+        except Exception as e:
+            log(f"HTML flow failed: {e}")
+            error_details = io.StringIO()
+            traceback.print_exc(file=error_details)
+            log(error_details.getvalue())
+            self.notification_manager.notify(
+                "PasteMD",
+                "HTML 转换失败，请查看日志。",
                 ok=False
             )
     
