@@ -8,6 +8,8 @@
 
 **✨ 新功能**：智能识别 Markdown 表格，一键粘贴到 **Excel**！
 
+**✨ 新功能**：智能识别 HTML富文本（除数学公式外），方便直接复制网页上的ai回复，一键粘贴到 **Word/WPS**！
+
 ---
 
 ## 功能特点
@@ -15,8 +17,13 @@
 ### 演示效果
 
 <p align="center">
-  <img src="docs/demo.gif" alt="演示动图" width="480">
+  <img src="docs/demo.gif" alt="演示动图" width="600">
 </p>
+
+<p align="center">
+  <img src="docs/demo-html.gif" alt="演示HTML动图" width="600">
+</p>
+
 
 * 全局热键（默认 `Ctrl+B`）一键粘贴 Markdown → DOCX。
 * **✨ 智能识别 Markdown 表格**，自动粘贴到 Excel。
@@ -38,11 +45,11 @@
 
 2. 打开 Word、WPS 或 Excel，光标放在需要插入的位置。
 
-3. 复制 Markdown 到剪贴板，按下热键 **Ctrl+B**。
+3. 复制 **Markdown** 或者 **网页内容** 到剪贴板，按下热键 **Ctrl+B**。
 
 4. 转换结果会自动插入到文档中：
    - **Markdown 表格** → 自动粘贴到 Excel（如果 Excel 已打开）
-   - **普通 Markdown** → 转换为 DOCX 并插入 Word/WPS
+   - **普通 Markdown**/**网页内容** → 转换为 DOCX 并插入 Word/WPS
 
 5. 右下角会提示成功/失败。
 
@@ -64,7 +71,8 @@
   "excel_keep_format": true,
   "auto_open_on_no_app": true,
   "md_disable_first_para_indent": true,
-  "html_disable_first_para_indent": true
+  "html_disable_first_para_indent": true,
+  "move_cursor_to_end": true
 }
 ```
 
@@ -81,6 +89,7 @@
 * **`auto_open_on_no_app`**：**✨ 新功能** 当未检测到目标应用（如 Word/Excel）时，是否自动创建文件并用系统默认应用打开（默认 true）。
 * **`md_disable_first_para_indent`**： - Markdown 转换时是否禁用第一段的特殊格式，统一为正文样式（默认 true）。
 * **`html_disable_first_para_indent`**： - HTML 富文本转换时是否禁用第一段的特殊格式，统一为正文样式（默认 true）。
+* **`move_cursor_to_end`**：**✨ 新功能** - 插入内容后是否将光标移动到插入内容的末尾（默认 true）。
 
 修改后可在托盘菜单选择 **“重载配置/热键”** 立即生效。
 
@@ -92,6 +101,7 @@
 * 启用热键：开/关全局热键。
 * 弹窗通知：开/关系统通知。
 * 无应用时自动打开：当未检测到 Word/Excel 时是否自动创建并用默认应用打开。
+* 插入后移动光标到末尾：插入内容后是否将光标移动到插入内容的末尾。
 * 设置热键：通过图形界面录制并保存新的全局热键（即时生效）。
 * 保留生成文件：勾选后生成的 DOCX 会保存在 `save_dir`。
 * 启动插入 Excel：启用/禁用 Markdown 表格智能识别并粘贴至 Excel。
