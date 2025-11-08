@@ -6,6 +6,7 @@ import tempfile
 import re
 from datetime import datetime
 from typing import Optional, List
+from bs4 import BeautifulSoup
 
 
 def ensure_dir(path: str) -> None:
@@ -64,6 +65,41 @@ def extract_title_from_markdown(md_text: str, max_chars: int = 30) -> Optional[s
             if cleaned:
                 return cleaned
     
+    return None
+
+
+def extract_title_from_html(html_text: str, max_chars: int = 30) -> Optional[str]:
+    """从 HTML 文本中提取合适的标题"""
+    if not html_text:
+        return None
+
+    soup = None
+    try:
+        soup = BeautifulSoup(html_text, "lxml")
+    except Exception:
+        try:
+            soup = BeautifulSoup(html_text, "html.parser")
+        except Exception:
+            return None
+
+    if soup.title and soup.title.string:
+        candidate = sanitize_filename(soup.title.string.strip(), max_length=max_chars)
+        if candidate:
+            return candidate
+
+    for heading_level in range(1, 7):
+        for tag in soup.find_all(f"h{heading_level}"):
+            text = tag.get_text(strip=True)
+            if text:
+                candidate = sanitize_filename(text, max_length=max_chars)
+                if candidate:
+                    return candidate
+
+    for text in soup.stripped_strings:
+        candidate = sanitize_filename(text, max_length=max_chars)
+        if candidate:
+            return candidate
+
     return None
 
 
@@ -150,15 +186,17 @@ def generate_unique_path(base_path: str) -> str:
 
 
 def generate_output_path(keep_file: bool, save_dir: str, md_text: str = "",
-                         table_data: Optional[List[List[str]]] = None) -> str:
+                         table_data: Optional[List[List[str]]] = None,
+                         html_text: str = "") -> str:
     """
     生成输出文件路径，优先使用内容中提取的名称
     
     Args:
         keep_file: 是否保留文件
         save_dir: 保存目录
-        md_text: Markdown 文本（用于提取标题）
+    md_text: Markdown 文本（用于提取标题）
         table_data: 表格数据（用于提取表名）
+    html_text: HTML 富文本（用于提取标题）
         
     Returns:
         输出文件的完整路径
@@ -172,13 +210,19 @@ def generate_output_path(keep_file: bool, save_dir: str, md_text: str = "",
         if table_name:
             filename = f"{table_name}.{file_ext}"
     
-    # 优先级 2: 如果是文档，使用标题
+    # 优先级 2: 如果是 HTML，使用 HTML 标题
+    if filename is None and html_text:
+        html_title = extract_title_from_html(html_text)
+        if html_title:
+            filename = f"{html_title}.{file_ext}"
+
+    # 优先级 3: 如果是文档，使用标题
     if filename is None and md_text:
         title = extract_title_from_markdown(md_text)
         if title:
             filename = f"{title}.{file_ext}"
     
-    # 优先级 3: 使用时间戳
+    # 优先级 4: 使用时间戳
     if filename is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"md_paste_{timestamp}.{file_ext}"

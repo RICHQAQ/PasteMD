@@ -73,7 +73,7 @@ class PasteWorkflow:
                     self._handle_word_flow(md_text, target, config)
                 else:
                     # 未检测到应用，尝试自动打开预生成的文件
-                    self._handle_no_app_flow(md_text, config)
+                    self._handle_no_app_flow(md_text, config, is_html=is_html)
             
         except ClipboardError as e:
             log(f"Clipboard error: {e}")
@@ -190,7 +190,8 @@ class PasteWorkflow:
                 try:
                     output_path = generate_output_path(
                         keep_file=True,
-                        save_dir=config.get("save_dir", "")
+                        save_dir=config.get("save_dir", ""),
+                        html_text=html_text
                     )
                     with open(output_path, "wb") as f:
                         f.write(docx_bytes)
@@ -345,13 +346,15 @@ class PasteWorkflow:
                 ok=False
             )
     
-    def _handle_no_app_flow(self, md_text: str, config: dict) -> None:
+    def _handle_no_app_flow(self, md_text: str, config: dict, is_html: bool = False) -> None:
         """
         无应用检测时的处理流程：生成文件并用默认应用打开
+        支持 Markdown 和 HTML 富文本
         
         Args:
             md_text: Markdown文本
             config: 配置字典
+            is_html: 剪贴板是否包含 HTML 富文本
         """
         # 检查是否启用了自动打开功能
         if not config.get("auto_open_on_no_app", True):
@@ -361,6 +364,11 @@ class PasteWorkflow:
                 "未检测到支持的应用。请打开 Word/WPS/Excel 或启用自动打开。",
                 ok=False
             )
+            return
+        
+        # HTML 富文本优先处理
+        if is_html:
+            self._generate_and_open_html_document(md_text, config)
             return
         
         # 检测内容类型
@@ -437,6 +445,70 @@ class PasteWorkflow:
             self.notification_manager.notify(
                 "PasteMD",
                 "生成文档失败。",
+                ok=False
+            )
+    
+    def _generate_and_open_html_document(self, md_text: str, config: dict) -> None:
+        """生成 DOCX 文件（来源 HTML）并用默认应用打开"""
+        try:
+            html_text = get_clipboard_html()
+            log(f"Retrieved HTML from clipboard for auto-open, length: {len(html_text)}")
+
+            self._ensure_pandoc_integration()
+            docx_bytes = self.pandoc_integration.convert_html_to_docx_bytes(
+                html_text=html_text,
+                reference_docx=config.get("reference_docx")
+            )
+
+            if config.get("html_disable_first_para_indent", True):
+                docx_bytes = DocxProcessor.apply_custom_processing(
+                    docx_bytes,
+                    disable_first_para_indent=True,
+                    target_style="Body Text"
+                )
+
+            output_path = generate_output_path(
+                keep_file=True,
+                save_dir=config.get("save_dir", ""),
+                md_text=md_text,
+                html_text=html_text
+            )
+
+            with open(output_path, "wb") as f:
+                f.write(docx_bytes)
+            log(f"Generated DOCX from HTML: {output_path}")
+
+            if AppLauncher.awaken_and_open_document(output_path):
+                self.notification_manager.notify(
+                    "PasteMD",
+                    f"已从 HTML 生成文档并用默认应用打开。\n路径: {output_path}",
+                    ok=True
+                )
+            else:
+                self.notification_manager.notify(
+                    "PasteMD",
+                    f"文档已生成，但打开失败。\n路径: {output_path}",
+                    ok=False
+                )
+        except ClipboardError as e:
+            log(f"Failed to get HTML from clipboard: {e}")
+            self.notification_manager.notify(
+                "PasteMD",
+                "读取剪贴板 HTML 内容失败。",
+                ok=False
+            )
+        except PandocError as e:
+            log(f"HTML to DOCX conversion failed: {e}")
+            self.notification_manager.notify(
+                "PasteMD",
+                "HTML 转换失败，请检查内容格式。",
+                ok=False
+            )
+        except Exception as e:
+            log(f"Failed to generate HTML document: {e}")
+            self.notification_manager.notify(
+                "PasteMD",
+                "生成 HTML 文档失败。",
                 ok=False
             )
     
