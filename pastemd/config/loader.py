@@ -30,6 +30,7 @@ class ConfigLoader:
                     config[key] = value
                     
             except Exception as e:
+                config = DEFAULT_CONFIG.copy()
                 log(f"Load config error: {e}")
                 raise ConfigError(f"Failed to load config: {e}")
         
