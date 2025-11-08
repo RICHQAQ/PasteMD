@@ -19,12 +19,13 @@ class WPSInserter(BaseWordInserter):
             app_name="WPS 文字"
         )
 
-    def insert(self, docx_path):
+    def insert(self, docx_path, move_cursor_to_end: bool = True):
         """
         插入文档，失败时自动清理后台进程并重试一次
         
         Args:
             docx_path: 文档路径
+            move_cursor_to_end: 插入后是否将光标移动到插入内容的末尾
             
         Returns:
             True 如果插入成功
@@ -34,7 +35,7 @@ class WPSInserter(BaseWordInserter):
         """
         try:
             # 第一次尝试
-            return super().insert(docx_path)
+            return super().insert(docx_path, move_cursor_to_end)
         except Exception:
             # 第一次失败，尝试清理后台进程
             log("尝试清理后台 WPS 进程重试...")
@@ -43,7 +44,7 @@ class WPSInserter(BaseWordInserter):
             if cleaned_count > 0:
                 log(f"已清理 {cleaned_count} 个后台 WPS 进程，重试插入...")
                 # 清理后重试一次，如果还失败就让异常抛出
-                return super().insert(docx_path)
+                return super().insert(docx_path, move_cursor_to_end)
             else:
                 log("没有找到需要清理的后台进程")
                 raise  # 抛出原始异常

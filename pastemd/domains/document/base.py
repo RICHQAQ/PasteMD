@@ -24,12 +24,13 @@ class BaseDocumentInserter(ABC):
     
     @ensure_com
     @abstractmethod
-    def insert(self, docx_path: str) -> bool:
+    def insert(self, docx_path: str, move_cursor_to_end: bool) -> bool:
         """
         将 DOCX 文件插入到应用当前光标位置
         
         Args:
             docx_path: DOCX 文件路径
+            move_cursor_to_end: 插入后是否将光标移动到插入内容的末尾
             
         Returns:
             True 如果插入成功
@@ -53,13 +54,14 @@ class BaseDocumentInserter(ABC):
         pass
     
     @abstractmethod
-    def _perform_insertion(self, app: Any, docx_path: str) -> bool:
+    def _perform_insertion(self, app: Any, docx_path: str, move_cursor_to_end: bool) -> bool:
         """
         执行实际的插入操作
         
         Args:
             app: 应用程序对象
             docx_path: DOCX 文件路径
+            move_cursor_to_end: 插入后是否将光标移动到插入内容的末尾
             
         Returns:
             True 如果插入成功

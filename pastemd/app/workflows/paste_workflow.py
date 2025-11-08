@@ -314,13 +314,13 @@ class PasteWorkflow:
         """
         if target == "word":
             try:
-                return self.word_inserter.insert(docx_path)
+                return self.word_inserter.insert(docx_path, app_state.config.get("move_cursor_to_end", True))
             except InsertError as e:
                 log(f"Word insertion failed: {e}")
                 return False
         elif target == "wps":
             try:
-                return self.wps_inserter.insert(docx_path)
+                return self.wps_inserter.insert(docx_path, app_state.config.get("move_cursor_to_end", True))
             except InsertError as e:
                 log(f"WPS insertion failed: {e}")
                 return False

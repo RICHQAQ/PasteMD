@@ -86,6 +86,11 @@ class TrayMenuManager:
                 self._on_toggle_auto_open,
                 checked=lambda item: config.get("auto_open_on_no_app", True)
             ),
+            pystray.MenuItem(
+                "插入后光标移动到末尾",
+                self._on_toggle_move_cursor,
+                checked=lambda item: config.get("move_cursor_to_end", True)
+            ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem("设置热键", self._on_set_hotkey),
             pystray.Menu.SEPARATOR,
@@ -186,6 +191,15 @@ class TrayMenuManager:
         self._save_config()
         icon.menu = self.build_menu()
         status = "已开启无应用时自动打开" if app_state.config["auto_open_on_no_app"] else "已关闭无应用时自动打开"
+        self.notification_manager.notify("PasteMD", status, ok=True)
+    
+    def _on_toggle_move_cursor(self, icon, item):
+        """切换插入后光标移动到末尾状态"""
+        current = app_state.config.get("move_cursor_to_end", True)
+        app_state.config["move_cursor_to_end"] = not current
+        self._save_config()
+        icon.menu = self.build_menu()
+        status = "已开启插入后光标移动到末尾" if app_state.config["move_cursor_to_end"] else "已关闭插入后光标移动到末尾"
         self.notification_manager.notify("PasteMD", status, ok=True)
         
     def _on_toggle_excel(self, icon, item):
