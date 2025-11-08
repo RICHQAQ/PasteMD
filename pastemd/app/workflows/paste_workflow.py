@@ -20,6 +20,7 @@ from ...utils.logging import log
 from ...core.state import app_state
 from ...core.errors import ClipboardError, PandocError, InsertError
 from ...utils.win32.memfile import EphemeralFile
+from ...utils.docx_processor import DocxProcessor
 
 
 class PasteWorkflow:
@@ -168,15 +169,23 @@ class PasteWorkflow:
                 html_text=html_text,
                 reference_docx=config.get("reference_docx")
             )
-            
-            # 3. 使用临时文件插入
+
+            # 3. 在内存中处理 DOCX 样式
+            if config.get("html_disable_first_para_indent", True):
+                docx_bytes = DocxProcessor.apply_custom_processing(
+                    docx_bytes,
+                    disable_first_para_indent=True,
+                    target_style="Body Text"
+                )
+
+            # 4. 使用临时文件插入
             temp_dir = config.get("temp_dir")  # 可选：支持 RAM 盘目录
             with EphemeralFile(suffix=".docx", dir_=temp_dir) as eph:
                 eph.write_bytes(docx_bytes)
                 # 插入
                 inserted = self._perform_word_insertion(eph.path, target)
             
-            # 4. 可选保存文件
+            # 5. 可选保存文件
             if config.get("keep_file", False):
                 try:
                     output_path = generate_output_path(
@@ -189,7 +198,7 @@ class PasteWorkflow:
                 except Exception as e:
                     log(f"Failed to save HTML-converted DOCX file: {e}")
             
-            # 5. 显示结果通知
+            # 6. 显示结果通知
             if inserted:
                 app_name = "Word" if target == "word" else "WPS 文字"
                 self.notification_manager.notify(
@@ -248,15 +257,25 @@ class PasteWorkflow:
             md_text=md_text,
             reference_docx=config.get("reference_docx")
         )
+
+        # 3. 在内存中处理 DOCX 样式
+        if config.get("md_disable_first_para_indent", True):
+            docx_bytes = DocxProcessor.apply_custom_processing(
+                docx_bytes,
+                disable_first_para_indent=True,
+                target_style="Body Text"
+            )
+
+        # 4. 使用临时文件插入
         temp_dir = config.get("temp_dir")  # 可选：支持 RAM 盘目录
         with EphemeralFile(suffix=".docx", dir_=temp_dir) as eph:
             eph.write_bytes(docx_bytes)
             # 插入
             inserted = self._perform_word_insertion(eph.path, target)
 
-        # 3. 保存文件
+        # 5. 保存文件
         if config.get("keep_file", False):
-            # 2. 生成输出路径
+            # 生成输出路径
             try:
                 output_path = generate_output_path(
                     keep_file=config.get("keep_file", False),
@@ -273,7 +292,7 @@ class PasteWorkflow:
                     ok=False
                 )
         
-        # 4. 显示结果通知
+        # 6. 显示结果通知
         self._show_word_result(target, inserted)
     
     def _ensure_pandoc_integration(self) -> None:
@@ -372,17 +391,28 @@ class PasteWorkflow:
                 save_dir=config.get("save_dir", ""),
                 md_text=md_text
             )
-            
-            # 3. 转换为DOCX
+
+            # 3. 转换为DOCX字节流
             self._ensure_pandoc_integration()
-            self.pandoc_integration.convert_to_docx(
+            docx_bytes = self.pandoc_integration.convert_to_docx_bytes(
                 md_text=md_text,
-                output_path=output_path,
                 reference_docx=config.get("reference_docx")
             )
+
+            # 4. 在内存中处理 DOCX 样式
+            if config.get("md_disable_first_para_indent", True):
+                docx_bytes = DocxProcessor.apply_custom_processing(
+                    docx_bytes,
+                    disable_first_para_indent=True,
+                    target_style="Body Text"
+                )
+
+            # 5. 写入文件
+            with open(output_path, "wb") as f:
+                f.write(docx_bytes)
             log(f"Generated DOCX: {output_path}")
-            
-            # 4. 用默认应用打开
+
+            # 6. 用默认应用打开
             if AppLauncher.awaken_and_open_document(output_path):
                 self.notification_manager.notify(
                     "PasteMD",

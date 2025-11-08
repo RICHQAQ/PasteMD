@@ -62,7 +62,9 @@
   "notify": true,
   "enable_excel": true,
   "excel_keep_format": true,
-  "auto_open_on_no_app": true
+  "auto_open_on_no_app": true,
+  "md_disable_first_para_indent": true,
+  "html_disable_first_para_indent": true
 }
 ```
 
@@ -77,6 +79,8 @@
 * **`enable_excel`**：**✨ 新功能** - 是否启用智能识别 Markdown 表格并粘贴到 Excel（默认 true）。
 * **`excel_keep_format`**：**✨ 新功能** - Excel 粘贴时是否保留 Markdown 格式（粗体、斜体、代码等），默认 true。
 * **`auto_open_on_no_app`**：**✨ 新功能** 当未检测到目标应用（如 Word/Excel）时，是否自动创建文件并用系统默认应用打开（默认 true）。
+* **`md_disable_first_para_indent`**： - Markdown 转换时是否禁用第一段的特殊格式，统一为正文样式（默认 true）。
+* **`html_disable_first_para_indent`**： - HTML 富文本转换时是否禁用第一段的特殊格式，统一为正文样式（默认 true）。
 
 修改后可在托盘菜单选择 **“重载配置/热键”** 立即生效。
 
