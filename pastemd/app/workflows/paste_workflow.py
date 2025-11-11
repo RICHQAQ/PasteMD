@@ -21,6 +21,8 @@ from ...utils.fs import generate_output_path
 from ...utils.logging import log
 from ...core.state import app_state
 from ...core.errors import ClipboardError, PandocError, InsertError
+from ...config.defaults import DEFAULT_CONFIG
+from ...config.loader import ConfigLoader
 from ...utils.win32.memfile import EphemeralFile
 from ...utils.docx_processor import DocxProcessor
 from ...utils.html_analyzer import is_plain_html_fragment
@@ -328,7 +330,23 @@ class PasteWorkflow:
         """确保 Pandoc 集成已初始化"""
         if self.pandoc_integration is None:
             pandoc_path = app_state.config.get("pandoc_path", "pandoc")
-            self.pandoc_integration = PandocIntegration(pandoc_path)
+            try:
+                self.pandoc_integration = PandocIntegration(pandoc_path)
+            except PandocError as e:
+                log(f"Failed to initialize PandocIntegration: {e}")
+                try: 
+                    self.pandoc_integration = PandocIntegration(DEFAULT_CONFIG.get("pandoc_path", "pandoc"))
+                    app_state.config["pandoc_path"] = DEFAULT_CONFIG["pandoc_path"]
+                    config_loader = ConfigLoader()
+                    config_loader.save(config=app_state.config)
+                except Exception as e2:
+                    log(f"Retry to initialize PandocIntegration failed: {e2}")
+                    self.notification_manager.notify(
+                        "PasteMD",
+                        r"Pandoc 初始化失败，请检查设置及是否配置环境",
+                        ok=False
+                    )
+                    self.pandoc_integration = None
     
     def _perform_word_insertion(self, docx_path: str, target: str) -> bool:
         """

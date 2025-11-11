@@ -12,6 +12,21 @@ class PandocIntegration:
     """Pandoc 工具集成"""
     
     def __init__(self, pandoc_path: str = "pandoc"):
+        # 测试 Pandoc 可执行文件路径
+        cmd = [pandoc_path, "--version"]
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                shell=False,
+            )
+            if result.returncode != 0:
+                raise PandocError(f"Pandoc not found or not working: {result.stderr.strip()}")
+        except FileNotFoundError:
+            raise PandocError(f"Pandoc executable not found: {pandoc_path}")
+        except Exception as e:
+            raise PandocError(f"Pandoc Error: {e}")
         self.pandoc_path = pandoc_path
     
     def convert_to_docx(
