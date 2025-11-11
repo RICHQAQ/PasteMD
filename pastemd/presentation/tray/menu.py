@@ -118,6 +118,10 @@ class TrayMenuManager:
             pystray.MenuItem("重载配置/热键", self._on_reload),
             pystray.Menu.SEPARATOR,
             *version_menu_items,
+            pystray.MenuItem(
+                "关于",
+                self._on_open_about_page
+            ),
             pystray.MenuItem("退出", self._on_quit)
         )
     
@@ -345,6 +349,20 @@ class TrayMenuManager:
         self.latest_version = latest_version
         self.latest_release_url = release_url
         icon.menu = self.build_menu()
+    
+    def _on_open_about_page(self, icon, item):
+        """打开关于页面"""
+        about_url = "http://pastemd.richqaq.cn"
+        try:
+            webbrowser.open(about_url)
+            log(f"Opening about page: {about_url}")
+        except Exception as e:
+            log(f"Failed to open browser: {e}")
+            self.notification_manager.notify(
+                "PasteMD",
+                "无法打开浏览器，请手动访问关于页面\nhttp://pastemd.richqaq.cn",
+                ok=False
+            )
     
     def _on_quit(self, icon, item):
         """退出应用程序"""
