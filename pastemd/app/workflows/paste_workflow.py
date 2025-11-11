@@ -8,6 +8,7 @@ from typing import Optional
 from ...utils.win32.detector import detect_active_app
 from ...utils.clipboard import get_clipboard_text, is_clipboard_empty, is_clipboard_html, get_clipboard_html
 from ...utils.latex import convert_latex_delimiters
+from ...utils.md_normalizer import normalize_markdown
 from ...domains.awakener import AppLauncher
 from ...integrations.pandoc import PandocIntegration
 from ...domains.document.word import WordInserter
@@ -273,7 +274,10 @@ class PasteWorkflow:
             target: 目标应用 (word 或 wps)
             config: 配置字典
         """
-        # 1. 处理LaTeX公式
+        # 1. 规范化 Markdown 格式（处理智谱清言等来源的格式问题）
+        md_text = normalize_markdown(md_text)
+        
+        # 2. 处理LaTeX公式
         md_text = convert_latex_delimiters(md_text)
 
         # 2. 生成DOCX字节流
@@ -415,7 +419,10 @@ class PasteWorkflow:
             config: 配置字典
         """
         try:
-            # 1. 处理LaTeX公式
+            # 1. 规范化 Markdown 格式
+            md_text = normalize_markdown(md_text)
+            
+            # 2. 处理LaTeX公式
             md_text = convert_latex_delimiters(md_text)
             
             # 2. 生成输出路径
