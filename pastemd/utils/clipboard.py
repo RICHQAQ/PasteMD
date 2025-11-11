@@ -1,9 +1,15 @@
 """Clipboard operations."""
 
+import re
 import pyperclip
 import win32clipboard as wc
 import time
 from ..core.errors import ClipboardError
+
+try:
+    from bs4 import NavigableString
+except ImportError:
+    NavigableString = None  # type: ignore
 
 
 def get_clipboard_text() -> str:
@@ -157,8 +163,6 @@ def _extract_html_fragment(cf_html: str) -> str:
     Returns:
         Fragment HTML 内容
     """
-    import re
-    
     # 提取元数据
     meta = {}
     for line in cf_html.splitlines():
@@ -195,7 +199,7 @@ def _extract_html_fragment(cf_html: str) -> str:
 
 def _clean_html_content(html: str) -> str:
     """
-    清理 HTML 内容，移除 SVG 等不可用元素
+    清理 HTML 内容，移除 SVG 等不可用元素，并规范化 Markdown 语法
     
     Args:
         html: 原始 HTML 内容
@@ -217,14 +221,69 @@ def _clean_html_content(html: str) -> str:
             if img["src"].lower().endswith(".svg"):
                 img.decompose()
         
+        # 处理文本节点中的 Markdown 删除线语法 ~~text~~ -> <del>text</del>
+        _convert_strikethrough_to_del(soup)
+        
         # 返回清理后的 HTML（包含最小壳）
         return f"<!DOCTYPE html>\n<meta charset='utf-8'>\n{str(soup)}"
         
     except ImportError:
         # 如果没有 BeautifulSoup，使用简单的正则清理
-        import re
         html = re.sub(r"<svg[^>]*>.*?</svg>", "", html, flags=re.DOTALL | re.IGNORECASE)
         html = re.sub(r'<img[^>]*src=["\'][^"\']*\.svg["\'][^>]*>', "", html, flags=re.IGNORECASE)
+        # 使用正则将 ~~text~~ 转换为 <del>text</del>
+        html = re.sub(r'~~([^~]+?)~~', r'<del>\1</del>', html)
         return html
+
+
+def _convert_strikethrough_to_del(soup) -> None:
+    """
+    在 BeautifulSoup 解析树中查找文本节点，将 ~~text~~ 替换为 <del>text</del>
+    
+    Args:
+        soup: BeautifulSoup 对象，会被原地修改
+    """
+    
+    # 递归处理所有文本节点
+    for element in soup.find_all(text=True):
+        if isinstance(element, NavigableString):
+            # 检查是否包含 ~~ 语法
+            if '~~' in element:
+                # 使用正则匹配 ~~...~~
+                pattern = r'~~([^~]+?)~~'
+                if re.search(pattern, element):
+                    # 将文本分割并替换
+                    new_content = []
+                    last_end = 0
+                    
+                    for match in re.finditer(pattern, element):
+                        # 添加匹配前的文本
+                        if match.start() > last_end:
+                            new_content.append(element[last_end:match.start()])
+                        
+                        # 创建 <del> 标签
+                        del_tag = soup.new_tag('del')
+                        del_tag.string = match.group(1)
+                        new_content.append(del_tag)
+                        
+                        last_end = match.end()
+                    
+                    # 添加剩余文本
+                    if last_end < len(element):
+                        new_content.append(element[last_end:])
+                    
+                    # 替换原文本节点
+                    parent = element.parent
+                    if parent:
+                        # 找到当前元素在父节点中的位置
+                        index = parent.contents.index(element)
+                        # 移除原元素
+                        element.extract()
+                        # 在相同位置插入新内容
+                        for i, item in enumerate(new_content):
+                            if isinstance(item, str):
+                                parent.insert(index + i, NavigableString(item))
+                            else:
+                                parent.insert(index + i, item)
 
 
