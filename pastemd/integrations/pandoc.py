@@ -15,11 +15,20 @@ class PandocIntegration:
         # 测试 Pandoc 可执行文件路径
         cmd = [pandoc_path, "--version"]
         try:
+            startupinfo = None
+            creationflags = 0
+            if os.name == "nt":
+                startupinfo = subprocess.STARTUPINFO()
+                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                creationflags = subprocess.CREATE_NO_WINDOW
+            
             result = subprocess.run(
                 cmd,
                 capture_output=True,
                 text=True,
                 shell=False,
+                startupinfo=startupinfo,
+                creationflags=creationflags,
             )
             if result.returncode != 0:
                 raise PandocError(f"Pandoc not found or not working: {result.stderr.strip()}")
