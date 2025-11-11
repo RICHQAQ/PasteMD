@@ -3,6 +3,7 @@
 import traceback
 import io
 import os
+from typing import Optional
 
 from ...utils.win32.detector import detect_active_app
 from ...utils.clipboard import get_clipboard_text, is_clipboard_empty, is_clipboard_html, get_clipboard_html
@@ -21,6 +22,7 @@ from ...core.state import app_state
 from ...core.errors import ClipboardError, PandocError, InsertError
 from ...utils.win32.memfile import EphemeralFile
 from ...utils.docx_processor import DocxProcessor
+from ...utils.html_analyzer import is_plain_html_fragment
 
 
 class PasteWorkflow:
@@ -49,18 +51,33 @@ class PasteWorkflow:
             # 2. 获取剪贴板内容和配置
             config = app_state.config
             
-            # 2.1 检测是否为 HTML 富文本
+            # 2.1 检测是否为 HTML 富文本，并尝试识别其结构
             is_html = is_clipboard_html()
-            log(f"Clipboard contains HTML: {is_html}")
+            html_text = None
+            should_use_html = False
+            if is_html:
+                try:
+                    html_text = get_clipboard_html()
+                    is_plain = is_plain_html_fragment(html_text)
+                    log(f"Clipboard contains HTML (plain_fragment={is_plain})")
+                    if not is_plain:
+                        should_use_html = True
+                    else:
+                        log("HTML fragment looks like Markdown, fallback to Markdown flow.")
+                except ClipboardError as e:
+                    log(f"Detected HTML clipboard data but failed to read fragment: {e}")
+                    is_html = False
+            else:
+                log("Clipboard contains HTML: False")
             
             # 3. 检测当前活动应用
             target = detect_active_app()
             log(f"Detected active target: {target}")
             
             # 4. 根据剪贴板内容类型和目标应用选择处理流程
-            if is_html and target in ("word", "wps"):
+            if should_use_html and target in ("word", "wps"):
                 # HTML 富文本流程：直接转换 HTML 为 DOCX
-                self._handle_html_to_word_flow(target, config)
+                self._handle_html_to_word_flow(target, config, html_text=html_text)
             else:
                 # 原有的 Markdown 流程
                 md_text = get_clipboard_text()
@@ -73,7 +90,12 @@ class PasteWorkflow:
                     self._handle_word_flow(md_text, target, config)
                 else:
                     # 未检测到应用，尝试自动打开预生成的文件
-                    self._handle_no_app_flow(md_text, config, is_html=is_html)
+                    self._handle_no_app_flow(
+                        md_text,
+                        config,
+                        is_html=should_use_html,
+                        html_text=html_text if should_use_html else None,
+                    )
             
         except ClipboardError as e:
             log(f"Clipboard error: {e}")
@@ -150,17 +172,19 @@ class PasteWorkflow:
                 ok=False
             )
     
-    def _handle_html_to_word_flow(self, target: str, config: dict) -> None:
+    def _handle_html_to_word_flow(self, target: str, config: dict, html_text: Optional[str] = None) -> None:
         """
         HTML 富文本流程：直接转换 HTML 为 DOCX 并插入到 Word/WPS
         
         Args:
             target: 目标应用 (word 或 wps)
             config: 配置字典
+            html_text: 预先读取好的 HTML 片段（可选）
         """
         try:
             # 1. 获取并清理 HTML 内容
-            html_text = get_clipboard_html()
+            if html_text is None:
+                html_text = get_clipboard_html()
             log(f"Retrieved HTML from clipboard, length: {len(html_text)}")
             
             # 2. 生成 DOCX 字节流
@@ -346,7 +370,7 @@ class PasteWorkflow:
                 ok=False
             )
     
-    def _handle_no_app_flow(self, md_text: str, config: dict, is_html: bool = False) -> None:
+    def _handle_no_app_flow(self, md_text: str, config: dict, is_html: bool = False, html_text: Optional[str] = None) -> None:
         """
         无应用检测时的处理流程：生成文件并用默认应用打开
         支持 Markdown 和 HTML 富文本
@@ -355,6 +379,7 @@ class PasteWorkflow:
             md_text: Markdown文本
             config: 配置字典
             is_html: 剪贴板是否包含 HTML 富文本
+            html_text: 预读取的 HTML 富文本内容
         """
         # 检查是否启用了自动打开功能
         if not config.get("auto_open_on_no_app", True):
@@ -368,7 +393,7 @@ class PasteWorkflow:
         
         # HTML 富文本优先处理
         if is_html:
-            self._generate_and_open_html_document(md_text, config)
+            self._generate_and_open_html_document(md_text, config, html_text=html_text)
             return
         
         # 检测内容类型
@@ -448,10 +473,11 @@ class PasteWorkflow:
                 ok=False
             )
     
-    def _generate_and_open_html_document(self, md_text: str, config: dict) -> None:
+    def _generate_and_open_html_document(self, md_text: str, config: dict, html_text: Optional[str] = None) -> None:
         """生成 DOCX 文件（来源 HTML）并用默认应用打开"""
         try:
-            html_text = get_clipboard_html()
+            if html_text is None:
+                html_text = get_clipboard_html()
             log(f"Retrieved HTML from clipboard for auto-open, length: {len(html_text)}")
 
             self._ensure_pandoc_integration()

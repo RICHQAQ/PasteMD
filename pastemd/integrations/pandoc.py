@@ -80,7 +80,7 @@ class PandocIntegration:
         """
         cmd = [
             self.pandoc_path,
-            "-f", "markdown+tex_math_dollars+raw_tex",
+            "-f", "markdown+tex_math_dollars+raw_tex+tex_math_double_backslash+tex_math_single_backslash",
             "-t", "docx",
             "-o", "-",
             "--highlight-style", "tango",
@@ -129,7 +129,7 @@ class PandocIntegration:
         """
         cmd = [
             self.pandoc_path,
-            "-f", "html",
+            "-f", "html+tex_math_dollars+raw_tex+tex_math_double_backslash+tex_math_single_backslash",
             "-t", "docx",
             "-o", "-",
             "--highlight-style", "tango",
