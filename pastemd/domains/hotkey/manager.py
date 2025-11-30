@@ -7,10 +7,10 @@ from ...utils.logging import log
 
 
 class HotkeyManager:
-    """热键管理器"""
+    """热键管理器 - 负责全局热键监听和触发"""
     
     def __init__(self):
-        self.listener: Optional[keyboard.GlobalHotKeys] = None
+        self.global_listener: Optional[keyboard.GlobalHotKeys] = None  # 全局热键监听器
         self.current_hotkey: Optional[str] = None
     
     def bind(self, hotkey: str, callback: Callable[[], None]) -> None:
@@ -26,9 +26,9 @@ class HotkeyManager:
         
         try:
             mapping = {hotkey: callback}
-            self.listener = keyboard.GlobalHotKeys(mapping)
-            self.listener.daemon = True
-            self.listener.start()
+            self.global_listener = keyboard.GlobalHotKeys(mapping)
+            self.global_listener.daemon = True
+            self.global_listener.start()
             self.current_hotkey = hotkey
             log(f"Hotkey bound: {hotkey}")
             
@@ -38,14 +38,14 @@ class HotkeyManager:
     
     def unbind(self) -> None:
         """解绑当前热键"""
-        if self.listener:
+        if self.global_listener:
             try:
-                self.listener.stop()
+                self.global_listener.stop()
                 log(f"Hotkey unbound: {self.current_hotkey}")
             except Exception as e:
                 log(f"Error stopping hotkey listener: {e}")
             finally:
-                self.listener = None
+                self.global_listener = None
                 self.current_hotkey = None
     
     def restart(self, hotkey: str, callback: Callable[[], None]) -> None:
@@ -55,4 +55,25 @@ class HotkeyManager:
     
     def is_bound(self) -> bool:
         """检查是否有热键绑定"""
-        return self.listener is not None and self.current_hotkey is not None
+        return self.global_listener is not None and self.current_hotkey is not None
+    
+    def pause(self) -> None:
+        """暂停热键监听（用于录制时避免触发）"""
+        if self.global_listener:
+            try:
+                self.global_listener.stop()
+                log(f"Hotkey paused: {self.current_hotkey}")
+            except Exception as e:
+                log(f"Error pausing hotkey listener: {e}")
+    
+    def resume(self, callback: Callable[[], None]) -> None:
+        """恢复热键监听"""
+        if self.current_hotkey and not self.global_listener:
+            try:
+                mapping = {self.current_hotkey: callback}
+                self.global_listener = keyboard.GlobalHotKeys(mapping)
+                self.global_listener.daemon = True
+                self.global_listener.start()
+                log(f"Hotkey resumed: {self.current_hotkey}")
+            except Exception as e:
+                log(f"Error resuming hotkey listener: {e}")

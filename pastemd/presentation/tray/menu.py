@@ -24,6 +24,8 @@ class TrayMenuManager:
         self.config_loader = config_loader
         self.notification_manager = notification_manager
         self.restart_hotkey_callback = None  # 将由外部设置
+        self.pause_hotkey_callback = None  # 暂停热键监听
+        self.resume_hotkey_callback = None  # 恢复热键监听
         self.version_checker = None  # 将由外部设置或按需创建
         self.latest_version = None  # 存储最新版本号
         self.latest_release_url = None  # 存储最新版本的下载链接
@@ -31,6 +33,14 @@ class TrayMenuManager:
     def set_restart_hotkey_callback(self, callback):
         """设置重启热键的回调函数"""
         self.restart_hotkey_callback = callback
+    
+    def set_pause_hotkey_callback(self, callback):
+        """设置暂停热键的回调函数"""
+        self.pause_hotkey_callback = callback
+    
+    def set_resume_hotkey_callback(self, callback):
+        """设置恢复热键的回调函数"""
+        self.resume_hotkey_callback = callback
     
     def build_menu(self) -> pystray.Menu:
         """构建托盘菜单"""
@@ -165,17 +175,29 @@ class TrayMenuManager:
                     ok=False)
                 raise
         
-        # 直接在主线程中显示对话框
-        # tkinter 必须在主线程中运行，不能使用后台线程
-        try:
-            dialog = HotkeyDialog(
-                current_hotkey=app_state.hotkey_str,
-                on_save=save_hotkey
-            )
-            dialog.show()
-        except Exception as e:
-            log(f"Failed to show hotkey dialog: {e}")
-            self.notification_manager.notify("PasteMD", f"打开热键设置失败：{str(e)}", ok=False)
+        # 在独立线程中显示对话框，避免阻塞主线程
+        def show_dialog():
+            try:
+                # 暂停全局热键监听（避免录制时触发）
+                if self.pause_hotkey_callback:
+                    self.pause_hotkey_callback()
+                
+                dialog = HotkeyDialog(
+                    current_hotkey=app_state.hotkey_str,
+                    on_save=save_hotkey,
+                    on_close=self.resume_hotkey_callback  # 关闭对话框时恢复监听
+                )
+                dialog.show()
+            except Exception as e:
+                log(f"Failed to show hotkey dialog: {e}")
+                self.notification_manager.notify("PasteMD", f"打开热键设置失败：{str(e)}", ok=False)
+            finally:
+                # 确保恢复热键监听
+                if self.resume_hotkey_callback:
+                    self.resume_hotkey_callback()
+        
+        thread = threading.Thread(target=show_dialog, daemon=True)
+        thread.start()
     
     def _on_toggle_notify(self, icon, item):
         """切换通知状态"""
