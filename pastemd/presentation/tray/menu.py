@@ -302,14 +302,26 @@ class TrayMenuManager:
             language_items.append(
                 pystray.MenuItem(
                     label,
-                    lambda icon, item, lang=code: self._on_change_language(icon, lang),
-                    checked=lambda item, lang=code: get_language() == lang
+                    self._create_language_action(code),
+                    checked=self._create_language_checked(code)
                 )
             )
         return pystray.MenuItem(
             t("tray.menu.language"),
             pystray.Menu(*language_items)
         )
+    
+    def _create_language_action(self, language_code: str):
+        """Wrap handler so pystray sees only (icon, item)."""
+        def action(icon, item):
+            self._on_change_language(icon, language_code)
+        return action
+    
+    def _create_language_checked(self, language_code: str):
+        """Wrap checked callback to avoid leaking extra args."""
+        def is_checked(item):
+            return get_language() == language_code
+        return is_checked
     
     def _on_change_language(self, icon, language_code: str):
         """切换界面语言"""
