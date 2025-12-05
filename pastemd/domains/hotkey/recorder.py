@@ -4,6 +4,24 @@ from typing import Optional, Callable, Set
 from pynput import keyboard
 
 from ...utils.logging import log
+from ...i18n import t
+
+
+SYSTEM_HOTKEY_DESCRIPTIONS = {
+    ('ctrl', 'c'): "hotkey.recorder.system.ctrl_c",
+    ('ctrl', 'v'): "hotkey.recorder.system.ctrl_v",
+    ('ctrl', 'x'): "hotkey.recorder.system.ctrl_x",
+    ('ctrl', 'z'): "hotkey.recorder.system.ctrl_z",
+    ('ctrl', 'y'): "hotkey.recorder.system.ctrl_y",
+    ('ctrl', 'a'): "hotkey.recorder.system.ctrl_a",
+    ('ctrl', 's'): "hotkey.recorder.system.ctrl_s",
+    ('ctrl', 'f'): "hotkey.recorder.system.ctrl_f",
+    ('ctrl', 'p'): "hotkey.recorder.system.ctrl_p",
+    ('ctrl', 'n'): "hotkey.recorder.system.ctrl_n",
+    ('ctrl', 'w'): "hotkey.recorder.system.ctrl_w",
+    ('ctrl', 't'): "hotkey.recorder.system.ctrl_t",
+    ('alt', 'f4'): "hotkey.recorder.system.alt_f4",
+}
 
 
 class HotkeyRecorder:
@@ -40,31 +58,24 @@ class HotkeyRecorder:
             
             # 检查是否有修饰键
             if not has_modifier:
-                return "热键必须包含至少一个修饰键（Ctrl、Shift、Alt）"
+                return t("hotkey.recorder.error.no_modifier")
             
             # 检查是否有普通键
             if not has_normal_key:
-                return "热键必须包含至少一个普通键"
+                return t("hotkey.recorder.error.no_normal_key")
             
             # 检查是否仅使用 Shift 作为修饰键
             if keys & modifiers == {'shift'}:
-                return "不能仅使用 Shift 作为修饰键，会与系统输入冲突"
+                return t("hotkey.recorder.error.shift_only_short")
             
             # 检查是否使用了系统级快捷键
-            system_hotkeys = [
-                {'ctrl', 'c'}, {'ctrl', 'v'}, {'ctrl', 'x'}, {'ctrl', 'z'},
-                {'ctrl', 'y'}, {'ctrl', 'a'}, {'ctrl', 's'}, {'ctrl', 'f'},
-                {'ctrl', 'p'}, {'ctrl', 'n'}, {'ctrl', 'w'}, {'ctrl', 't'},
-                {'alt', 'f4'}
-            ]
-            
-            for system_combo in system_hotkeys:
-                if keys == system_combo:
-                    return f"不能使用系统级快捷键 {hotkey.upper()}"
+            for system_combo in SYSTEM_HOTKEY_DESCRIPTIONS:
+                if keys == set(system_combo):
+                    return t("hotkey.recorder.error.system_reserved_short", combo=hotkey.upper())
             
             return None
         except Exception as e:
-            return f"无效的热键格式: {str(e)}"
+            return t("hotkey.recorder.error.invalid_format", error=str(e))
     
     def start_recording(
         self,
@@ -224,7 +235,7 @@ class HotkeyRecorder:
         if not self.all_pressed_keys:
             self.stop_recording()
             if self.on_finish_callback:
-                self.on_finish_callback(None, "未检测到按键")
+                self.on_finish_callback(None, t("hotkey.recorder.error.no_key_detected"))
             return
         
         # 验证热键
@@ -257,38 +268,22 @@ class HotkeyRecorder:
         
         # 检查是否有修饰键
         if not has_modifier:
-            return "热键必须包含至少一个修饰键（Ctrl、Shift、Alt）"
+            return t("hotkey.recorder.error.no_modifier")
         
         # 检查是否有普通键
         if not has_normal_key:
-            return "热键必须包含至少一个普通键"
+            return t("hotkey.recorder.error.no_normal_key")
         
         # 检查是否仅使用 Shift 作为修饰键
         # Shift 单独作为修饰键会与系统输入冲突
         if self.all_pressed_keys & modifiers == {'shift'}:
-            return "不能仅使用 Shift 作为修饰键，会与系统输入冲突。\n请至少包含 Ctrl、Alt 或 Win 键之一。"
+            return t("hotkey.recorder.error.shift_only_long")
         
         # 检查是否使用了系统级快捷键
         # pynput.GlobalHotKeys 无法拦截这些快捷键的系统默认行为
-        system_hotkeys = {
-            ('ctrl', 'c'): 'Ctrl+C（复制）',
-            ('ctrl', 'v'): 'Ctrl+V（粘贴）',
-            ('ctrl', 'x'): 'Ctrl+X（剪切）',
-            ('ctrl', 'z'): 'Ctrl+Z（撤销）',
-            ('ctrl', 'y'): 'Ctrl+Y（重做）',
-            ('ctrl', 'a'): 'Ctrl+A（全选）',
-            ('ctrl', 's'): 'Ctrl+S（保存）',
-            ('ctrl', 'f'): 'Ctrl+F（查找）',
-            ('ctrl', 'p'): 'Ctrl+P（打印）',
-            ('ctrl', 'n'): 'Ctrl+N（新建）',
-            ('ctrl', 'w'): 'Ctrl+W（关闭）',
-            ('ctrl', 't'): 'Ctrl+T（新标签）',
-            ('alt', 'f4'): 'Alt+F4（关闭窗口）',
-        }
-        
-        for key_combo, desc in system_hotkeys.items():
+        for key_combo, desc_key in SYSTEM_HOTKEY_DESCRIPTIONS.items():
             if set(key_combo) == self.all_pressed_keys:
-                return f"不能使用 {desc}，这是系统级快捷键。\npynput 无法拦截其默认行为，会导致冲突。\n\n建议使用不常用的组合键，如：\n• Ctrl+Shift+V\n• Ctrl+Alt+V\n• Ctrl+B（默认配置）"
+                return t("hotkey.recorder.error.system_reserved_long", combo=t(desc_key))
         
         return None
     

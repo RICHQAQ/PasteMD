@@ -6,6 +6,7 @@ from ...domains.hotkey.recorder import HotkeyRecorder
 from ...config.defaults import DEFAULT_CONFIG
 from ...core.state import app_state
 from ...utils.logging import log
+from ...i18n import t
 
 
 class HotkeyRunner:
@@ -47,8 +48,8 @@ class HotkeyRunner:
             # 通知用户
             if self.notification_manager:
                 self.notification_manager.notify(
-                    "PasteMD - 热键设置错误",
-                    f"配置的热键无效，已恢复为默认: Ctrl+B\n\n错误: {error}",
+                    f"PasteMD - {t('hotkey.runner.title_invalid_config')}",
+                    t("hotkey.runner.invalid_config", error=error),
                     ok=False
                 )
         
@@ -75,16 +76,16 @@ class HotkeyRunner:
                     
                     if self.notification_manager:
                         self.notification_manager.notify(
-                            "PasteMD - 热键绑定失败",
-                            "热键绑定失败，已恢复为默认: Ctrl+B",
+                            f"PasteMD - {t('hotkey.runner.title_binding_failed')}",
+                            t("hotkey.runner.binding_failed"),
                             ok=False
                         )
                 except Exception as fallback_error:
                     log(f"Failed to bind default hotkey: {fallback_error}")
                     if self.notification_manager:
                         self.notification_manager.notify(
-                            "PasteMD - 严重错误",
-                            "无法绑定热键，请检查系统设置",
+                            f"PasteMD - {t('hotkey.runner.title_serious_error')}",
+                            t("hotkey.runner.serious_error"),
                             ok=False
                         )
     

@@ -17,6 +17,7 @@ from ..config.paths import get_app_icon_path
 from ..utils.logging import log
 from ..utils.version_checker import VersionChecker
 from ..domains.notification.manager import NotificationManager
+from ..i18n import DEFAULT_LANGUAGE, detect_system_language, set_language, t
 from .wiring import Container
 
 
@@ -27,6 +28,20 @@ def initialize_application() -> Container:
     config = config_loader.load()
     app_state.config = config
     app_state.hotkey_str = config.get("hotkey", "<ctrl>+b")
+
+    language_value = config.get("language", DEFAULT_LANGUAGE) or DEFAULT_LANGUAGE
+    language = str(language_value)
+    if language.lower() == DEFAULT_LANGUAGE:
+        detected_language = detect_system_language()
+        if detected_language and detected_language != DEFAULT_LANGUAGE:
+            language = detected_language
+            app_state.config["language"] = detected_language
+            try:
+                config_loader.save(app_state.config)
+            except Exception as exc:
+                log(f"Failed to persist auto-detected language: {exc}")
+            log(f"Auto-detected system language: {detected_language}")
+    set_language(language)
     
     # 2. 创建依赖注入容器
     container = Container()
@@ -42,7 +57,7 @@ def show_startup_notification(notification_manager: NotificationManager) -> None
         get_app_icon_path()
         notification_manager.notify(
             "PasteMD",
-            "启动成功，已经运行在后台。",
+            t("app.startup.success"),
             ok=True
         )
     except Exception as e:

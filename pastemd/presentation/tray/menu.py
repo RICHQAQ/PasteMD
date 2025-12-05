@@ -13,6 +13,7 @@ from ...domains.notification.manager import NotificationManager
 from ...utils.fs import ensure_dir
 from ...utils.logging import log
 from ...utils.version_checker import VersionChecker
+from ...i18n import t, iter_languages, get_language, set_language, get_language_label
 from .icon import create_status_icon
 from ..hotkey.dialog import HotkeyDialog
 
@@ -50,7 +51,7 @@ class TrayMenuManager:
         # 构建版本菜单项
         version_menu_items = [
             pystray.MenuItem(
-                f"当前版本: {__version__}",
+                t("tray.menu.current_version", version=__version__),
                 lambda icon, item: None,
                 enabled=False
             ),
@@ -60,7 +61,7 @@ class TrayMenuManager:
         if self.latest_version:
             version_menu_items.append(
                 pystray.MenuItem(
-                    f"✨ 新版本: {self.latest_version}",
+                    t("tray.menu.new_version", version=self.latest_version),
                     self._on_open_release_page,
                     enabled=True
                 )
@@ -68,71 +69,73 @@ class TrayMenuManager:
         else:
             version_menu_items.append(
                 pystray.MenuItem(
-                    "检查更新",
+                    t("tray.menu.check_update"),
                     self._on_check_update
                 )
             )
         
+        language_menu = self._build_language_menu()
+        
         return pystray.Menu(
-            # 快捷显示
             pystray.MenuItem(
-                f"快捷键: {app_state.config['hotkey']}",
+                t("tray.menu.hotkey_display", hotkey=app_state.config['hotkey']),
                 lambda icon, item: None,
                 enabled=False
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                "启用热键",
+                t("tray.menu.enable_hotkey"),
                 self._on_toggle_enabled,
                 checked=lambda item: app_state.enabled
             ),
             pystray.MenuItem(
-                "弹窗通知",
+                t("tray.menu.show_notifications"),
                 self._on_toggle_notify,
                 checked=lambda item: config.get("notify", True)
             ),
             pystray.MenuItem(
-                "无应用时自动打开",
+                t("tray.menu.auto_open"),
                 self._on_toggle_auto_open,
                 checked=lambda item: config.get("auto_open_on_no_app", True)
             ),
             pystray.MenuItem(
-                "插入后光标移动到末尾",
+                t("tray.menu.move_cursor"),
                 self._on_toggle_move_cursor,
                 checked=lambda item: config.get("move_cursor_to_end", True)
             ),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("设置热键", self._on_set_hotkey),
+            pystray.MenuItem(t("tray.menu.set_hotkey"), self._on_set_hotkey),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                "保留生成文件",
+                t("tray.menu.keep_file"),
                 self._on_toggle_keep,
                 checked=lambda item: config.get("keep_file", False)
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
-                "启动插入excel",
+                t("tray.menu.enable_excel"),
                 self._on_toggle_excel,
                 checked=lambda item: config.get("enable_excel", True)
             ),
             pystray.MenuItem(
-                "启动excel解析特殊格式",
+                t("tray.menu.keep_excel_format"),
                 self._on_toggle_excel_format,
                 checked=lambda item: config.get("excel_keep_format", True)
             ),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("打开保存目录", self._on_open_save_dir),
-            pystray.MenuItem("查看日志", self._on_open_log),
+            pystray.MenuItem(t("tray.menu.open_save_dir"), self._on_open_save_dir),
+            pystray.MenuItem(t("tray.menu.open_log"), self._on_open_log),
             pystray.Menu.SEPARATOR,
-            pystray.MenuItem("编辑配置", self._on_edit_config),
-            pystray.MenuItem("重载配置/热键", self._on_reload),
+            pystray.MenuItem(t("tray.menu.edit_config"), self._on_edit_config),
+            pystray.MenuItem(t("tray.menu.reload_config"), self._on_reload),
+            language_menu,
             pystray.Menu.SEPARATOR,
             *version_menu_items,
             pystray.MenuItem(
-                "关于",
+                t("tray.menu.about"),
                 self._on_open_about_page
             ),
-            pystray.MenuItem("退出", self._on_quit)
+            pystray.MenuItem(t("tray.menu.quit"), self._on_quit)
         )
     
     # 菜单回调函数
@@ -141,7 +144,7 @@ class TrayMenuManager:
         app_state.enabled = not app_state.enabled
         icon.icon = create_status_icon(ok=app_state.enabled)
         
-        status = "已启用热键" if app_state.enabled else "已暂停热键"
+        status = t("tray.status.hotkey_enabled") if app_state.enabled else t("tray.status.hotkey_paused")
         icon.menu = self.build_menu()
         self.notification_manager.notify("PasteMD", status, ok=app_state.enabled)
     
@@ -165,13 +168,13 @@ class TrayMenuManager:
                 log(f"Hotkey changed to: {new_hotkey}")
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"热键已更新为：{new_hotkey}",
+                    t("tray.status.hotkey_saved", hotkey=new_hotkey),
                     ok=True)
             except Exception as e:
                 log(f"Failed to save hotkey: {e}")
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"保存热键失败：{str(e)}",
+                    t("tray.error.hotkey_save_failed", error=str(e)),
                     ok=False)
                 raise
         
@@ -190,7 +193,7 @@ class TrayMenuManager:
                 dialog.show()
             except Exception as e:
                 log(f"Failed to show hotkey dialog: {e}")
-                self.notification_manager.notify("PasteMD", f"打开热键设置失败：{str(e)}", ok=False)
+                self.notification_manager.notify("PasteMD", t("tray.error.open_hotkey_dialog", error=str(e)), ok=False)
             finally:
                 # 确保恢复热键监听
                 if self.resume_hotkey_callback:
@@ -206,7 +209,7 @@ class TrayMenuManager:
         self._save_config()
         icon.menu = self.build_menu()
         if app_state.config["notify"]:
-            self.notification_manager.notify("PasteMD", "已开启通知", ok=True)
+            self.notification_manager.notify("PasteMD", t("tray.status.notifications_enabled"), ok=True)
         else:
             log("Notifications disabled via tray toggle")
     
@@ -216,7 +219,7 @@ class TrayMenuManager:
         app_state.config["auto_open_on_no_app"] = not current
         self._save_config()
         icon.menu = self.build_menu()
-        status = "已开启无应用时自动打开" if app_state.config["auto_open_on_no_app"] else "已关闭无应用时自动打开"
+        status = t("tray.status.auto_open_on") if app_state.config["auto_open_on_no_app"] else t("tray.status.auto_open_off")
         self.notification_manager.notify("PasteMD", status, ok=True)
     
     def _on_toggle_move_cursor(self, icon, item):
@@ -225,7 +228,7 @@ class TrayMenuManager:
         app_state.config["move_cursor_to_end"] = not current
         self._save_config()
         icon.menu = self.build_menu()
-        status = "已开启插入后光标移动到末尾" if app_state.config["move_cursor_to_end"] else "已关闭插入后光标移动到末尾"
+        status = t("tray.status.move_cursor_on") if app_state.config["move_cursor_to_end"] else t("tray.status.move_cursor_off")
         self.notification_manager.notify("PasteMD", status, ok=True)
         
     def _on_toggle_excel(self, icon, item):
@@ -234,7 +237,8 @@ class TrayMenuManager:
         app_state.config["enable_excel"] = not current
         self._save_config()
         icon.menu = self.build_menu()
-        self.notification_manager.notify("PasteMD", f"Excel 插入功能：{'开启' if not current else '关闭'}", ok=True)
+        status = t("tray.status.excel_insert_on") if app_state.config["enable_excel"] else t("tray.status.excel_insert_off")
+        self.notification_manager.notify("PasteMD", status, ok=True)
         
     def _on_toggle_excel_format(self, icon, item):
         """切换 Excel 粘贴时是否保留格式"""
@@ -242,7 +246,8 @@ class TrayMenuManager:
         app_state.config["excel_keep_format"] = not current
         self._save_config()
         icon.menu = self.build_menu()
-        self.notification_manager.notify("PasteMD", f"Excel 格式保留：{'开启' if not current else '关闭'}", ok=True)
+        status = t("tray.status.excel_format_on") if app_state.config["excel_keep_format"] else t("tray.status.excel_format_off")
+        self.notification_manager.notify("PasteMD", status, ok=True)
     
     def _on_toggle_keep(self, icon, item):
         """切换保留文件状态"""
@@ -250,7 +255,7 @@ class TrayMenuManager:
         app_state.config["keep_file"] = not current
         self._save_config()
         icon.menu = self.build_menu()
-        status = "保留文件：开启" if app_state.config["keep_file"] else "保留文件：关闭"
+        status = t("tray.status.keep_file_on") if app_state.config["keep_file"] else t("tray.status.keep_file_off")
         self.notification_manager.notify("PasteMD", status, ok=True)
     
     def _on_open_save_dir(self, icon, item):
@@ -280,14 +285,46 @@ class TrayMenuManager:
         try:
             app_state.config = self.config_loader.load()
             app_state.hotkey_str = app_state.config.get("hotkey", "<ctrl>+b")
+            set_language(app_state.config.get("language", "zh"))
             
             if self.restart_hotkey_callback:
                 self.restart_hotkey_callback()
             icon.menu = self.build_menu()
-            self.notification_manager.notify("PasteMD", "配置已重载", ok=True)
+            self.notification_manager.notify("PasteMD", t("tray.status.config_reloaded"), ok=True)
         except Exception as e:
             log(f"Failed to reload config: {e}")
-            self.notification_manager.notify("PasteMD", "配置重载失败", ok=False)
+            self.notification_manager.notify("PasteMD", t("tray.error.config_reload_failed"), ok=False)
+    
+    def _build_language_menu(self) -> pystray.MenuItem:
+        """构建语言选择菜单"""
+        language_items = []
+        for code, label in iter_languages():
+            language_items.append(
+                pystray.MenuItem(
+                    label,
+                    lambda icon, item, lang=code: self._on_change_language(icon, lang),
+                    checked=lambda item, lang=code: get_language() == lang
+                )
+            )
+        return pystray.MenuItem(
+            t("tray.menu.language"),
+            pystray.Menu(*language_items)
+        )
+    
+    def _on_change_language(self, icon, language_code: str):
+        """切换界面语言"""
+        current = app_state.config.get("language", "zh")
+        if current == language_code:
+            return
+        app_state.config["language"] = language_code
+        set_language(language_code)
+        self._save_config()
+        icon.menu = self.build_menu()
+        self.notification_manager.notify(
+            "PasteMD",
+            t("tray.status.language_changed", language=get_language_label(language_code)),
+            ok=True
+        )
     
     def _on_check_update(self, icon, item):
         """检查更新"""
@@ -304,8 +341,8 @@ class TrayMenuManager:
                     # 网络错误或检查失败
                     log("Version check failed - network error")
                     self.notification_manager.notify(
-                        "PasteMD - 检查更新失败",
-                        "网络连接失败，请稍后再试",
+                        f"PasteMD - {t('tray.update.title_failure')}",
+                        t("tray.update.network_error"),
                         ok=False
                     )
                 elif result.get("has_update"):
@@ -316,9 +353,9 @@ class TrayMenuManager:
                     self.update_version_info(icon, latest_version, release_url)
                     
                     # 通知用户有新版本，并自动打开下载页面
-                    message = f"发现新版本 {latest_version}，正在为您打开下载页面..."
+                    message = t("tray.update.opening_release", version=latest_version)
                     self.notification_manager.notify(
-                        "PasteMD - 有新版本",
+                        f"PasteMD - {t('tray.update.title_new_version')}",
                         message,
                         ok=True
                     )
@@ -336,14 +373,16 @@ class TrayMenuManager:
                     current_version = result.get("current_version")
                     log(f"Already on latest version: {current_version}")
                     self.notification_manager.notify(
-                        "PasteMD - 已是最新版本",
-                        f"当前版本 {current_version} 已是最新版本",
+                        f"PasteMD - {t('tray.update.title_latest')}",
+                        t("tray.update.latest_version", version=current_version),
                         ok=True
                     )
             except Exception as e:
+                error_text = str(e)
+                short_error = error_text if len(error_text) <= 15 else error_text[:12] + "..."
                 self.notification_manager.notify(
-                    "PasteMD - 更新检查失败",
-                    f"检查更新时出错：{str(e) if len(str(e)) <= 15 else str(e)[:12] + '...'}",
+                    f"PasteMD - {t('tray.update.title_unexpected_error')}",
+                    t("tray.update.error_with_message", error=short_error),
                     ok=False
                 )
                 log(f"Error checking update: {e}")
@@ -362,7 +401,7 @@ class TrayMenuManager:
                 log(f"Failed to open browser: {e}")
                 self.notification_manager.notify(
                     "PasteMD",
-                    "无法打开浏览器，请手动访问 GitHub Releases 页面",
+                    t("tray.error.open_release_page"),
                     ok=False
                 )
 
@@ -382,7 +421,7 @@ class TrayMenuManager:
             log(f"Failed to open browser: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "无法打开浏览器，请手动访问关于页面\nhttp://pastemd.richqaq.cn",
+                t("tray.error.open_about_page", url=about_url),
                 ok=False
             )
     

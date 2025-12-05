@@ -26,6 +26,7 @@ from ...config.loader import ConfigLoader
 from ...utils.win32.memfile import EphemeralFile
 from ...utils.docx_processor import DocxProcessor
 from ...utils.html_analyzer import is_plain_html_fragment
+from ...i18n import t
 
 
 class PasteWorkflow:
@@ -46,7 +47,7 @@ class PasteWorkflow:
             if is_clipboard_empty():
                 self.notification_manager.notify(
                     "PasteMD",
-                    "剪贴板为空，未处理。",
+                    t("workflow.clipboard.empty"),
                     ok=False
                 )
                 return
@@ -104,14 +105,14 @@ class PasteWorkflow:
             log(f"Clipboard error: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "剪贴板读取失败。",
+                t("workflow.clipboard.read_failed"),
                 ok=False
             )
         except PandocError as e:
             log(f"Pandoc error: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "Markdown 转换失败，请检查格式。",
+                t("workflow.markdown.convert_failed"),
                 ok=False
             )
         except Exception:
@@ -122,7 +123,7 @@ class PasteWorkflow:
             
             self.notification_manager.notify(
                 "PasteMD",
-                "转换失败，请查看日志。",
+                t("workflow.generic.failure"),
                 ok=False
             )
     
@@ -150,7 +151,7 @@ class PasteWorkflow:
             # 不是有效的Markdown表格
             self.notification_manager.notify(
                 "PasteMD",
-                f"未检测到有效的 Markdown 表格。\n当前应用: {app_name}",
+                t("workflow.table.invalid_with_app", app=app_name),
                 ok=False
             )
             return
@@ -164,14 +165,14 @@ class PasteWorkflow:
             if success:
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"已插入 {len(table_data)} 行表格到 {app_name}。",
+                    t("workflow.table.insert_success", rows=len(table_data), app=app_name),
                     ok=True
                 )
         except InsertError as e:
             log(f"{app_name} insert failed: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                f"插入到 {app_name} 失败。\n{str(e)}",
+                t("workflow.table.insert_failed", app=app_name, error=str(e)),
                 ok=False
             )
     
@@ -231,14 +232,14 @@ class PasteWorkflow:
                 app_name = "Word" if target == "word" else "WPS 文字"
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"已从网页 HTML 插入到 {app_name}。",
+                    t("workflow.html.insert_success", app=app_name),
                     ok=True
                 )
             else:
                 app_name = "Word" if target == "word" else "WPS 文字"
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"未能插入到 {app_name}，请确认软件已打开且有光标。",
+                    t("workflow.insert_failed_no_app", app=app_name),
                     ok=False
                 )
                 
@@ -246,14 +247,14 @@ class PasteWorkflow:
             log(f"Failed to get HTML from clipboard: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "读取剪贴板 HTML 内容失败。",
+                t("workflow.html.clipboard_failed"),
                 ok=False
             )
         except PandocError as e:
             log(f"HTML to DOCX conversion failed: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "HTML 转换失败，请检查内容格式。",
+                t("workflow.html.convert_failed_format"),
                 ok=False
             )
         except Exception as e:
@@ -263,7 +264,7 @@ class PasteWorkflow:
             log(error_details.getvalue())
             self.notification_manager.notify(
                 "PasteMD",
-                "HTML 转换失败，请查看日志。",
+                t("workflow.html.convert_failed_generic"),
                 ok=False
             )
     
@@ -319,7 +320,7 @@ class PasteWorkflow:
                 log(f"Failed to save DOCX file: {e}")
                 self.notification_manager.notify(
                     "PasteMD",
-                    "保存文档失败。",
+                    t("workflow.document.save_failed"),
                     ok=False
                 )
         
@@ -343,7 +344,7 @@ class PasteWorkflow:
                     log(f"Retry to initialize PandocIntegration failed: {e2}")
                     self.notification_manager.notify(
                         "PasteMD",
-                        r"Pandoc 初始化失败，请检查设置及是否配置环境",
+                        t("workflow.pandoc.init_failed"),
                         ok=False
                     )
                     self.pandoc_integration = None
@@ -381,14 +382,14 @@ class PasteWorkflow:
             app_name = "Word" if target == "word" else "WPS 文字"
             self.notification_manager.notify(
                 "PasteMD",
-                f"已插入到 {app_name}。",
+                t("workflow.word.insert_success", app=app_name),
                 ok=True
             )
         else:
             app_name = "Word" if target == "word" else "WPS 文字"
             self.notification_manager.notify(
                 "PasteMD",
-                f"未能插入到 {app_name}，请确认软件已打开且有光标。",
+                t("workflow.insert_failed_no_app", app=app_name),
                 ok=False
             )
     
@@ -408,7 +409,7 @@ class PasteWorkflow:
             log("auto_open_on_no_app is disabled, skipping")
             self.notification_manager.notify(
                 "PasteMD",
-                "未检测到支持的应用。请打开 Word/WPS/Excel 或启用自动打开。",
+                t("workflow.no_app_detected"),
                 ok=False
             )
             return
@@ -474,27 +475,27 @@ class PasteWorkflow:
             if AppLauncher.awaken_and_open_document(output_path):
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"已生成文档并用默认应用打开。\n路径: {output_path}",
+                    t("workflow.document.generated_and_opened", path=output_path),
                     ok=True
                 )
             else:
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"文档已生成，但打开失败。\n路径: {output_path}",
+                    t("workflow.document.open_failed", path=output_path),
                     ok=False
                 )
         except PandocError as e:
             log(f"Pandoc conversion failed: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "Markdown 转换失败，请检查格式。",
+                t("workflow.markdown.convert_failed"),
                 ok=False
             )
         except Exception as e:
             log(f"Failed to generate document: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "生成文档失败。",
+                t("workflow.document.generate_failed"),
                 ok=False
             )
     
@@ -532,34 +533,34 @@ class PasteWorkflow:
             if AppLauncher.awaken_and_open_document(output_path):
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"已从 HTML 生成文档并用默认应用打开。\n路径: {output_path}",
+                    t("workflow.html.generated_and_opened", path=output_path),
                     ok=True
                 )
             else:
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"文档已生成，但打开失败。\n路径: {output_path}",
+                    t("workflow.document.open_failed", path=output_path),
                     ok=False
                 )
         except ClipboardError as e:
             log(f"Failed to get HTML from clipboard: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "读取剪贴板 HTML 内容失败。",
+                t("workflow.html.clipboard_failed"),
                 ok=False
             )
         except PandocError as e:
             log(f"HTML to DOCX conversion failed: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "HTML 转换失败，请检查内容格式。",
+                t("workflow.html.convert_failed_format"),
                 ok=False
             )
         except Exception as e:
             log(f"Failed to generate HTML document: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "生成 HTML 文档失败。",
+                t("workflow.html.generate_failed"),
                 ok=False
             )
     
@@ -577,7 +578,7 @@ class PasteWorkflow:
             if table_data is None:
                 self.notification_manager.notify(
                     "PasteMD",
-                    "未检测到有效的 Markdown 表格。",
+                    t("workflow.table.invalid_simple"),
                     ok=False
                 )
                 return
@@ -598,19 +599,19 @@ class PasteWorkflow:
             if AppLauncher.generate_and_open_spreadsheet(table_data, output_path, keep_format):
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"已生成表格（{len(table_data)} 行）并用默认应用打开。\n路径: {output_path}",
+                    t("workflow.table.export_success", rows=len(table_data), path=output_path),
                     ok=True
                 )
             else:
                 self.notification_manager.notify(
                     "PasteMD",
-                    f"表格已生成，但打开失败。\n路径: {output_path}",
+                    t("workflow.table.export_open_failed", path=output_path),
                     ok=False
                 )
         except Exception as e:
             log(f"Failed to generate spreadsheet: {e}")
             self.notification_manager.notify(
                 "PasteMD",
-                "生成表格失败。",
+                t("workflow.table.export_failed"),
                 ok=False
             )

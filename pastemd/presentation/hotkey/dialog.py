@@ -6,6 +6,7 @@ from typing import Optional, Callable
 
 from ...utils.logging import log
 from ...domains.hotkey.recorder import HotkeyRecorder
+from ...i18n import t
 
 
 class HotkeyDialog:
@@ -26,7 +27,7 @@ class HotkeyDialog:
         self.new_hotkey: Optional[str] = None
         
         self.root = tk.Tk()
-        self.root.title("设置热键")
+        self.root.title(t("hotkey.dialog.title"))
         self.root.geometry("450x300")
         self.root.resizable(False, False)
         
@@ -59,7 +60,7 @@ class HotkeyDialog:
         
         title_label = ttk.Label(
             title_frame,
-            text="设置全局热键",
+            text=t("hotkey.dialog.heading"),
             font=("Microsoft YaHei UI", 12, "bold")
         )
         title_label.pack()
@@ -68,7 +69,7 @@ class HotkeyDialog:
         current_frame = ttk.Frame(self.root, padding="10")
         current_frame.pack(fill=tk.X)
         
-        ttk.Label(current_frame, text="当前热键：").pack(side=tk.LEFT)
+        ttk.Label(current_frame, text=t("hotkey.dialog.current_hotkey")).pack(side=tk.LEFT)
         ttk.Label(
             current_frame,
             text=self._format_hotkey(self.current_hotkey),
@@ -79,7 +80,7 @@ class HotkeyDialog:
         input_frame = ttk.Frame(self.root, padding="10")
         input_frame.pack(fill=tk.X)
         
-        ttk.Label(input_frame, text="新热键：").pack(side=tk.LEFT)
+        ttk.Label(input_frame, text=t("hotkey.dialog.new_hotkey")).pack(side=tk.LEFT)
         
         self.hotkey_entry = ttk.Entry(
             input_frame,
@@ -95,7 +96,7 @@ class HotkeyDialog:
         
         self.record_btn = ttk.Button(
             record_frame,
-            text="点击录制热键",
+            text=t("hotkey.dialog.record_button"),
             command=self._start_recording
         )
         self.record_btn.pack()
@@ -106,7 +107,7 @@ class HotkeyDialog:
         
         cancel_btn = ttk.Button(
             button_frame,
-            text="取消",
+            text=t("hotkey.dialog.cancel_button"),
             command=self._on_cancel,
             width=12
         )
@@ -114,7 +115,7 @@ class HotkeyDialog:
         
         self.save_btn = ttk.Button(
             button_frame,
-            text="保存并应用",
+            text=t("hotkey.dialog.save_button"),
             command=self._on_save,
             state=tk.DISABLED,
             width=12
@@ -129,10 +130,10 @@ class HotkeyDialog:
         """开始录制热键"""
         self.new_hotkey = None
         
-        self.record_btn.config(text="正在录制... (按下组合键)", state=tk.DISABLED)
+        self.record_btn.config(text=t("hotkey.dialog.recording_button"), state=tk.DISABLED)
         self.hotkey_entry.config(state=tk.NORMAL)
         self.hotkey_entry.delete(0, tk.END)
-        self.hotkey_entry.insert(0, "等待按键...")
+        self.hotkey_entry.insert(0, t("hotkey.dialog.waiting_input"))
         self.hotkey_entry.config(state="readonly")
         
         # 使用录制器开始录制
@@ -149,7 +150,7 @@ class HotkeyDialog:
         """录制完成回调"""
         if error:
             # 有错误，显示警告
-            self.root.after(0, lambda: messagebox.showwarning("无效热键", error))
+            self.root.after(0, lambda: messagebox.showwarning(t("hotkey.dialog.invalid_title"), error))
             self.root.after(0, self._reset_recording)
         elif hotkey_str:
             # 成功录制
@@ -169,11 +170,11 @@ class HotkeyDialog:
     def _enable_save_button(self):
         """启用保存按钮"""
         self.save_btn.config(state=tk.NORMAL)
-        self.record_btn.config(text="重新录制", state=tk.NORMAL)
+        self.record_btn.config(text=t("hotkey.dialog.record_again"), state=tk.NORMAL)
     
     def _reset_recording(self):
         """重置录制状态"""
-        self.record_btn.config(text="点击录制热键", state=tk.NORMAL)
+        self.record_btn.config(text=t("hotkey.dialog.record_button"), state=tk.NORMAL)
         self.hotkey_entry.config(state=tk.NORMAL)
         self.hotkey_entry.delete(0, tk.END)
         self.hotkey_entry.config(state="readonly")
@@ -181,18 +182,17 @@ class HotkeyDialog:
     def _on_save(self):
         """保存热键"""
         if not self.new_hotkey:
-            messagebox.showwarning("提示", "请先录制新热键")
+            messagebox.showwarning(t("hotkey.dialog.notice_title"), t("hotkey.dialog.record_first"))
             return
         
         # 确认对话框
-        confirm_msg = (
-            f"确认将热键更改为：{self._format_hotkey(self.new_hotkey)}\n\n"
-            f"原热键：{self._format_hotkey(self.current_hotkey)}\n"
-            f"新热键：{self._format_hotkey(self.new_hotkey)}\n\n"
-            "更改将立即生效，是否继续？"
+        confirm_msg = t(
+            "hotkey.dialog.confirm_message",
+            old_hotkey=self._format_hotkey(self.current_hotkey),
+            new_hotkey=self._format_hotkey(self.new_hotkey)
         )
         
-        if not messagebox.askyesno("确认更改", confirm_msg):
+        if not messagebox.askyesno(t("hotkey.dialog.confirm_title"), confirm_msg):
             return
         
         try:
