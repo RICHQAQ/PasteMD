@@ -3,6 +3,10 @@
   <img src="assets/icons/logo.png" alt="PasteMD" width="160" height="160">
 </p>
 
+<p align="center"> 
+  <a href="docs/md/README.en.md">English</a> 
+</p>
+
 一个常驻托盘的小工具：
 从 **剪贴板读取 Markdown**，调用 **Pandoc** 转换为 DOCX，并自动插入到 **Word/WPS** 光标位置。
 
@@ -16,12 +20,25 @@
 
 ### 演示效果
 
-<p align="center">
-  <img src="docs/demo.gif" alt="演示动图" width="600">
-</p>
+#### Markdown → Word/WPS
 
 <p align="center">
-  <img src="docs/demo-html.gif" alt="演示HTML动图" width="600">
+  <img src="docs/gif/demo.gif" alt="演示动图" width="600">
+</p>
+
+#### 复制网页中的ai回复 → Word/WPS
+<p align="center">
+  <img src="docs/gif/demo-html.gif" alt="演示HTML动图" width="600">
+</p>
+
+#### Markdown 表格 → Excel
+<p align="center">
+  <img src="docs/gif/demo-excel.gif" alt="演示Excel动图" width="600">
+</p>
+
+#### 设置格式
+<p align="center">
+  <img src="docs/gif/demo-chage_format.gif" alt="演示设置格式动图" width="600">
 </p>
 
 
@@ -158,6 +175,12 @@ pyinstaller --clean -F -w -n PasteMD  --icon assets\icons\logo.ico  --add-data "
 生成的程序在 `dist/PasteMD.exe`。
 
 ---
+
+## ⭐ Star 
+
+感谢每一位 Star 的帮助，欢迎分享给更多小伙伴～
+
+[![Star History Chart](https://api.star-history.com/svg?repos=RICHQAQ/PasteMD&type=Date)](https://star-history.com/#RICHQAQ/PasteMD&Date)
 
 ## 🍵支持与打赏
 
