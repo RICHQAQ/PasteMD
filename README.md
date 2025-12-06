@@ -169,7 +169,14 @@ python main.py
 使用 PyInstaller：
 
 ```bash
-pyinstaller --clean -F -w -n PasteMD  --icon assets\icons\logo.ico  --add-data "assets\icons;assets\icons" --hidden-import plyer.platforms.win.notification  main.py
+pyinstaller --clean -F -w -n PasteMD
+  --icon assets\icons\logo.ico
+  --add-data "assets\icons;assets\icons"
+  --add-data "pastemd\i18n\locales;pastemd\i18n\locales"
+  --hidden-import plyer.platforms.win.notification
+  --hidden-import pastemd.i18n.locales.zh
+  --hidden-import pastemd.i18n.locales.en
+  main.py
 ```
 
 生成的程序在 `dist/PasteMD.exe`。
