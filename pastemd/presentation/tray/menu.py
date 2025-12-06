@@ -111,26 +111,27 @@ class TrayMenuManager:
                 self._on_toggle_keep,
                 checked=lambda item: config.get("keep_file", False)
             ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                t("tray.menu.enable_excel"),
-                self._on_toggle_excel,
-                checked=lambda item: config.get("enable_excel", True)
-            ),
-            pystray.MenuItem(
-                t("tray.menu.keep_excel_format"),
-                self._on_toggle_excel_format,
-                checked=lambda item: config.get("excel_keep_format", True)
-            ),
+            # 废弃 Excel 相关选项，减少菜单复杂度
+            # pystray.Menu.SEPARATOR,
+            # pystray.MenuItem(
+            #     t("tray.menu.enable_excel"),
+            #     self._on_toggle_excel,
+            #     checked=lambda item: config.get("enable_excel", True)
+            # ),
+            # pystray.MenuItem(
+            #     t("tray.menu.keep_excel_format"),
+            #     self._on_toggle_excel_format,
+            #     checked=lambda item: config.get("excel_keep_format", True)
+            # ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("tray.menu.open_save_dir"), self._on_open_save_dir),
             pystray.MenuItem(t("tray.menu.open_log"), self._on_open_log),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(t("tray.menu.edit_config"), self._on_edit_config),
             pystray.MenuItem(t("tray.menu.reload_config"), self._on_reload),
-            language_menu,
             pystray.Menu.SEPARATOR,
             *version_menu_items,
+            language_menu,
             pystray.MenuItem(
                 t("tray.menu.about"),
                 self._on_open_about_page
