@@ -1,7 +1,8 @@
 """Application entry point and initialization."""
 
-import threading
 import sys
+import threading
+import queue
 
 try:
     import ctypes
@@ -100,6 +101,10 @@ def main() -> None:
         
         # 初始化应用程序
         container = initialize_application()
+
+        # 初始化 UI 队列，确保 Tk 等 UI 操作始终在主线程
+        ui_queue: queue.Queue = queue.Queue()
+        app_state.ui_queue = ui_queue
         
         # 启动热键监听
         hotkey_runner = container.get_hotkey_runner()
@@ -115,9 +120,23 @@ def main() -> None:
         # 启动后台版本检查（无需显示通知）
         check_update_in_background(notification_manager, tray_menu_manager)
         
-        # 启动托盘（阻塞运行）
+        # 启动托盘（改为后台线程，避免阻塞主线程）
         tray_runner = container.get_tray_runner()
-        tray_runner.run()
+        threading.Thread(target=tray_runner.run, daemon=True).start()
+
+        # 主线程专职处理 UI 任务，避免 Tk 在子线程导致 Tcl_AsyncDelete
+        while True:
+            try:
+                task = ui_queue.get()
+            except Exception as e:
+                log(f"UI queue error: {e}")
+                break
+            if task is None:
+                break
+            try:
+                task()
+            except Exception as e:
+                log(f"UI task error: {e}")
         
     except KeyboardInterrupt:
         log("Application interrupted by user")

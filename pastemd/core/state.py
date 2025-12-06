@@ -22,6 +22,9 @@ class AppState:
     # 单实例检查器
     instance_checker: Optional[Any] = None  # SingleInstanceChecker
 
+    # UI 任务队列，确保 Tk 等 UI 操作仅在主线程运行
+    ui_queue: Optional[Any] = None
+
     # 线程锁
     _lock: threading.Lock = field(default_factory=threading.Lock)
     

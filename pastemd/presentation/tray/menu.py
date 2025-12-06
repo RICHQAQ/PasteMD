@@ -150,7 +150,7 @@ class TrayMenuManager:
         self.notification_manager.notify("PasteMD", status, ok=app_state.enabled)
     
     def _on_set_hotkey(self, icon, item):
-        """设置热键"""
+        """设置热键，确保 Tk 对话框在主线程 UI 队列中运行"""
         def save_hotkey(new_hotkey: str):
             """保存新热键并重启热键绑定"""
             try:
@@ -179,8 +179,8 @@ class TrayMenuManager:
                     ok=False)
                 raise
         
-        # 在独立线程中显示对话框，避免阻塞主线程
-        def show_dialog():
+        def show_dialog_on_main():
+            """在主线程打开/销毁 Tk 对话框"""
             try:
                 # 暂停全局热键监听（避免录制时触发）
                 if self.pause_hotkey_callback:
@@ -199,9 +199,13 @@ class TrayMenuManager:
                 # 确保恢复热键监听
                 if self.resume_hotkey_callback:
                     self.resume_hotkey_callback()
-        
-        thread = threading.Thread(target=show_dialog, daemon=True)
-        thread.start()
+
+        ui_queue = getattr(app_state, "ui_queue", None)
+        if ui_queue is not None:
+            ui_queue.put(show_dialog_on_main)
+        else:
+            # 兜底：未获取到 UI 队列时，仍在当前线程执行
+            show_dialog_on_main()
     
     def _on_toggle_notify(self, icon, item):
         """切换通知状态"""
@@ -441,6 +445,8 @@ class TrayMenuManager:
     def _on_quit(self, icon, item):
         """退出应用程序"""
         icon.stop()
+        if getattr(app_state, "ui_queue", None):
+            app_state.ui_queue.put(None)
     
     def _save_config(self):
         """保存配置"""
