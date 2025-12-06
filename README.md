@@ -12,7 +12,9 @@
 </p>
 
 <p align="center"> 
-  <a href="docs/md/README.en.md">English</a> 
+  <a href="docs/md/README.en.md">English</a>
+  |
+  <a href="README.md">简体中文</a>
 </p>
 
 一个常驻托盘的小工具：

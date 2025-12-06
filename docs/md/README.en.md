@@ -11,7 +11,9 @@
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Word%20%7C%20WPS-5e8d36">
 </p>
 
-<p align="center"> 
+<p align="center">
+  <a href="README.en.md">English</a>
+  | 
   <a href="../../README.md">简体中文</a> 
 </p>
 
