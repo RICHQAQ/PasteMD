@@ -3,6 +3,14 @@
   <img src="assets/icons/logo.png" alt="PasteMD" width="160" height="160">
 </p>
 
+<p align="center">
+  <a href="https://github.com/RICHQAQ/PasteMD/releases"><img src="https://img.shields.io/github/v/release/RICHQAQ/PasteMD?sort=semver&label=release"></a>
+  <a href="https://github.com/RICHQAQ/PasteMD/releases"><img src="https://img.shields.io/github/downloads/RICHQAQ/PasteMD/total?label=downloads"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/RICHQAQ/PasteMD"></a>
+  <img src="https://img.shields.io/badge/python-3.12%2B-3776ab">
+  <img src="https://img.shields.io/badge/platform-Windows%20%7C%20Word%20%7C%20WPS-5e8d36">
+</p>
+
 <p align="center"> 
   <a href="docs/md/README.en.md">English</a> 
 </p>
@@ -117,7 +125,8 @@
   "auto_open_on_no_app": true,
   "md_disable_first_para_indent": true,
   "html_disable_first_para_indent": true,
-  "move_cursor_to_end": true
+  "move_cursor_to_end": true,
+  "language": "zh"
 }
 ```
 
@@ -135,6 +144,7 @@
 * **`md_disable_first_para_indent`**： - Markdown 转换时是否禁用第一段的特殊格式，统一为正文样式（默认 true）。
 * **`html_disable_first_para_indent`**： - HTML 富文本转换时是否禁用第一段的特殊格式，统一为正文样式（默认 true）。
 * **`move_cursor_to_end`**：**✨ 新功能** - 插入内容后是否将光标移动到插入内容的末尾（默认 true）。
+* `language`：界面语言，`zh` 中文，`en` 英文。
 
 修改后可在托盘菜单选择 **“重载配置/热键”** 立即生效。
 
@@ -149,8 +159,6 @@
 * 插入后移动光标到末尾：插入内容后是否将光标移动到插入内容的末尾。
 * 设置热键：通过图形界面录制并保存新的全局热键（即时生效）。
 * 保留生成文件：勾选后生成的 DOCX 会保存在 `save_dir`。
-* 启动插入 Excel：启用/禁用 Markdown 表格智能识别并粘贴至 Excel。
-* 启动 Excel 解析特殊格式：粘贴到 Excel 时尽量保留粗体、斜体、代码等格式。
 * 打开保存目录、查看日志、编辑配置、重载配置/热键。
 * 版本：显示当前版本；可检查更新；若检测到新版本，会显示条目并可点击打开下载页面。
 * 退出：退出程序。
