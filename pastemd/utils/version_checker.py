@@ -22,6 +22,8 @@ class VersionChecker:
             current_version: 当前应用版本号
         """
         self.current_version = current_version
+        no_proxy_handler = urllib.request.ProxyHandler({})
+        self._opener = urllib.request.build_opener(no_proxy_handler)
     
     def check_update(self) -> Optional[Dict[str, Any]]:
         """
@@ -77,10 +79,11 @@ class VersionChecker:
         try:
             req = urllib.request.Request(
                 self.GITHUB_API_URL,
-                headers={"User-Agent": "PasteMD"}
+                headers={"User-Agent": f"PasteMD/{self.current_version}",
+                         "version": self.current_version}
             )
             
-            with urllib.request.urlopen(req, timeout=self.TIMEOUT) as response:
+            with self._opener.open(req, timeout=self.TIMEOUT) as response:
                 if response.status == 200:
                     data = json.loads(response.read().decode("utf-8"))
                     return data
