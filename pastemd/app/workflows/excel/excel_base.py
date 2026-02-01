@@ -8,7 +8,7 @@ from pastemd.app.workflows.base import BaseWorkflow
 from pastemd.core.errors import ClipboardError
 from pastemd.i18n import t
 from pastemd.service.spreadsheet import SpreadsheetGenerator
-from pastemd.service.spreadsheet.parser import parse_markdown_table
+from pastemd.service.spreadsheet.parser import parse_table
 from pastemd.utils.clipboard import get_clipboard_text, is_clipboard_empty
 from pastemd.utils.fs import generate_output_path
 from pastemd.utils.clipboard import read_markdown_files_from_clipboard
@@ -71,7 +71,7 @@ class ExcelBaseWorkflow(BaseWorkflow, ABC):
         found, files_data, _ = read_markdown_files_from_clipboard()
         if found:
             markdown_text = merge_markdown_contents(files_data)
-        table_data = parse_markdown_table(markdown_text)
+        table_data = parse_table(markdown_text)
 
         if not table_data:
             raise ClipboardError("剪贴板中无有效 Markdown 表格")

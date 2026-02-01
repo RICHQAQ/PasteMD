@@ -1,5 +1,7 @@
 """Markdown table parser."""
 
+import csv
+import io
 import re
 from typing import List, Optional
 
@@ -93,3 +95,83 @@ def parse_markdown_table(md_text: str) -> Optional[List[List[str]]]:
         return None
     
     return table_data
+
+
+def parse_csv_table(text: str) -> Optional[List[List[str]]]:
+    """
+    解析 CSV 格式文本为二维数组
+    
+    Args:
+        text: CSV 格式文本内容
+        
+    Returns:
+        二维数组，每个元素代表一行的单元格内容；如果不是有效 CSV 则返回 None
+    """
+    if not text or not text.strip():
+        return None
+    
+    lines = text.strip().split('\n')
+    # 至少需要一行数据
+    if len(lines) < 1:
+        return None
+    
+    # 检查是否包含逗号（CSV 的基本特征）
+    if ',' not in text:
+        return None
+    
+    try:
+        reader = csv.reader(io.StringIO(text))
+        table_data = []
+        first_row_cols = None
+        
+        for row in reader:
+            # 跳过空行
+            if not row or all(cell.strip() == '' for cell in row):
+                continue
+            
+            # 记录第一行的列数
+            if first_row_cols is None:
+                first_row_cols = len(row)
+                # 至少需要 2 列才认为是表格
+                if first_row_cols < 2:
+                    return None
+            
+            # 去除每个单元格的首尾空白
+            cleaned_row = [cell.strip() for cell in row]
+            table_data.append(cleaned_row)
+        
+        # 至少需要 1 行数据
+        if len(table_data) < 1:
+            return None
+        
+        return table_data
+        
+    except csv.Error:
+        return None
+
+
+def parse_table(text: str) -> Optional[List[List[str]]]:
+    """
+    统一的表格解析入口，先尝试 Markdown 格式，再尝试 CSV 格式
+    
+    Args:
+        text: 表格文本内容
+        
+    Returns:
+        二维数组，每个元素代表一行的单元格内容；如果无法解析则返回 None
+    """
+    if not text:
+        return None
+    
+    # 先尝试 Markdown 表格
+    result = parse_markdown_table(text)
+    if result:
+        return result
+    
+    # 再尝试 CSV 格式
+    result = parse_csv_table(text)
+    if result:
+        return result
+    
+    return None
+
