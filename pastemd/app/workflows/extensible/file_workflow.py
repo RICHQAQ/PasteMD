@@ -11,7 +11,7 @@ from ....utils.clipboard import (
 )
 from ....utils.html_analyzer import is_plain_html_fragment
 from ....utils.markdown_utils import merge_markdown_contents
-from ....service.spreadsheet.parser import parse_markdown_table
+from ....service.spreadsheet.parser import parse_table
 from ....service.spreadsheet.generator import SpreadsheetGenerator
 from ....utils.fs import generate_output_path
 from ....i18n import t
@@ -44,7 +44,7 @@ class FileWorkflow(ExtensibleWorkflow):
 
             if content_type == "table":
                 markdown_text = self._read_markdown_content()
-                table_data = parse_markdown_table(markdown_text)
+                table_data = parse_table(markdown_text)
                 keep_format = self.config.get(
                     "excel_keep_format", self.config.get("keep_format", True)
                 )
@@ -134,7 +134,7 @@ class FileWorkflow(ExtensibleWorkflow):
         if found:
             markdown_text = merge_markdown_contents(files_data)
 
-        table_data = parse_markdown_table(markdown_text) if markdown_text else None
+        table_data = parse_table(markdown_text) if markdown_text else None
         if table_data:
             return "table"
 

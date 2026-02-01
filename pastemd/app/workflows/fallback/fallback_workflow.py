@@ -8,7 +8,7 @@ from pastemd.utils.clipboard import (
 )
 from pastemd.utils.html_analyzer import is_plain_html_fragment
 from pastemd.utils.markdown_utils import merge_markdown_contents
-from pastemd.service.spreadsheet.parser import parse_markdown_table
+from pastemd.service.spreadsheet.parser import parse_table
 from pastemd.utils.fs import generate_output_path
 from pastemd.core.errors import ClipboardError, PandocError
 from pastemd.i18n import t
@@ -79,7 +79,7 @@ class FallbackWorkflow(BaseWorkflow):
         found, files_data, _ = read_markdown_files_from_clipboard()
         if found:
             markdown_text = merge_markdown_contents(files_data)
-        table_data = parse_markdown_table(markdown_text)
+        table_data = parse_table(markdown_text)
         if table_data:
             return "table"
         
@@ -100,7 +100,7 @@ class FallbackWorkflow(BaseWorkflow):
         found, files_data, _ = read_markdown_files_from_clipboard()
         if found:
             markdown_text = merge_markdown_contents(files_data)
-        table_data = parse_markdown_table(markdown_text)
+        table_data = parse_table(markdown_text)
         
         # 生成输出路径
         output_path = generate_output_path(
