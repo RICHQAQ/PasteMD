@@ -10,6 +10,7 @@ from ...i18n import t
 from .word import WordWorkflow, WPSWorkflow
 from .excel import ExcelWorkflow, WPSExcelWorkflow
 from .fallback import FallbackWorkflow
+from .office_omml import OneNoteWorkflow, PowerPointWorkflow
 from .extensible import HtmlWorkflow, MdWorkflow, LatexWorkflow, FileWorkflow
 
 
@@ -33,6 +34,8 @@ class WorkflowRouter:
             "wps": WPSWorkflow(),
             "excel": ExcelWorkflow(),
             "wps_excel": WPSExcelWorkflow(),
+            "onenote": OneNoteWorkflow(),
+            "powerpoint": PowerPointWorkflow(),
             "": FallbackWorkflow(),  # 空字符串表示无应用/兜底
         }
         

@@ -197,6 +197,7 @@ class PandocIntegration:
             "-o", "-",
             "--wrap", "none",
             "--standalone",
+            "--mathml",
         ]
         if enable_latex_replacements:
             cmd += ["--lua-filter", LUA_LATEX_REPLACEMENTS]

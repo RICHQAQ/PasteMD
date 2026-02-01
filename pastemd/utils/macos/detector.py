@@ -56,6 +56,10 @@ def detect_active_app() -> str:
         return "word"
     if name in ("excel", "microsoft excel"):
         return "excel"
+    if name in ("onenote", "microsoft onenote"):
+        return "onenote"
+    if name in ("powerpoint", "microsoft powerpoint"):
+        return "powerpoint"
     if "wps" in name or "kingsoft" in name:
         return detect_wps_type()
 

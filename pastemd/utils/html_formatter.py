@@ -10,6 +10,19 @@ from bs4 import BeautifulSoup, NavigableString, Tag
 _CSS_CLASS_RE = re.compile(r"\.(?P<class>[A-Za-z0-9_-]+)\s*\{(?P<body>[^}]*)\}", re.DOTALL)
 
 
+def extract_html_body(html: str) -> str:
+    """Extract body content from a standalone HTML document."""
+    body_match = re.search(r"<body[^>]*>(.*?)</body>", html, re.DOTALL | re.IGNORECASE)
+    if body_match:
+        return body_match.group(1).strip()
+
+    html = re.sub(r"<!DOCTYPE[^>]*>", "", html, flags=re.IGNORECASE)
+    html = re.sub(r"<html[^>]*>|</html>", "", html, flags=re.IGNORECASE)
+    html = re.sub(r"<head[^>]*>.*?</head>", "", html, flags=re.DOTALL | re.IGNORECASE)
+    html = re.sub(r"<body[^>]*>|</body>", "", html, flags=re.IGNORECASE)
+    return html.strip()
+
+
 def clean_html_content(soup: BeautifulSoup, options: Optional[Dict[str, object]] = None) -> None:
     """
     清理 HTML 内容，移除不可用元素，并按配置应用格式化规则。

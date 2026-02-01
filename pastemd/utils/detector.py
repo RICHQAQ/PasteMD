@@ -8,7 +8,7 @@ from __future__ import annotations
 import sys
 from typing import Literal
 
-AppType = Literal["word", "wps", "excel", "wps_excel", ""]
+AppType = Literal["word", "wps", "excel", "wps_excel", "onenote", "powerpoint", ""]
 
 # 根据平台导入对应的实现
 if sys.platform == "darwin":

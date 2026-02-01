@@ -284,6 +284,16 @@ move_dir_and_link_back "tcl-files"
 move_dir_and_link_back "tk-files"
 move_dir_and_link_back "docx/templates"
 
+# Third-party notices: keep inside app bundle for compliance visibility
+NOTICES_SRC="THIRD_PARTY_NOTICES.md"
+NOTICES_DST="$RES_DIR/THIRD_PARTY_NOTICES.md"
+if [[ -f "$NOTICES_SRC" ]]; then
+  echo "==> 复制 Third-Party Notices 到 Resources..."
+  cp -f "$NOTICES_SRC" "$NOTICES_DST"
+else
+  echo "警告：未找到 $NOTICES_SRC，跳过第三方声明文件打包。"
+fi
+
 # Pandoc：只把 share 挪走（man 在里面），bin 保持在 MacOS（更符合预期）
 if [[ -d "$MACOS_DIR/pandoc/share" && ! -L "$MACOS_DIR/pandoc/share" ]]; then
   move_dir_and_link_back "pandoc/share"
@@ -345,6 +355,11 @@ trap 'rm -rf "$STAGE_DIR"' EXIT
 # 用 ditto 保留 symlink/元数据，避免签名失效
 ditto "$APP_PATH" "$STAGE_DIR/$APP_NAME.app"
 ln -s /Applications "$STAGE_DIR/Applications" || true
+
+# 额外在 DMG 根目录放一份第三方声明
+if [[ -f "$NOTICES_SRC" ]]; then
+  cp -f "$NOTICES_SRC" "$STAGE_DIR/THIRD_PARTY_NOTICES.md"
+fi
 
 DMG_PATH="$DIST_DIR/${APP_NAME}-${VERSION}.dmg"
 rm -f "$DMG_PATH"

@@ -24,3 +24,4 @@ the links below.
 - lxml - BSD-3-Clause - https://github.com/lxml/lxml/blob/master/LICENSE.txt
 - pywin32 (Windows only) - PSF License - https://www.python.org/psf/license/
 - pync (macOS only) - MIT - https://github.com/setem/pync/blob/master/LICENSE
+- mathml2omml - MIT - https://github.com/AlloteSoftware/mathml2omml_as
