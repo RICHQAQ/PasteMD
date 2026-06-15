@@ -146,32 +146,41 @@ if sys.platform in ("win32", "darwin"):
     ])
 
 
-def capture_clipboard_content() -> tuple[str, str, str]:
-    """捕获剪贴板内容，返回 (preview, full_text, original_html)。
+def capture_clipboard_content() -> tuple[str, str, str, bool, int]:
+    """捕获剪贴板内容，返回 (preview, full_text, original_html, from_md_file, md_file_count)。
 
     必须在 workflow.execute() 之前调用，以便 workflow 复用预捕获的数据。
+
+    from_md_file / md_file_count: 指示内容是否来自剪贴板中的 .md 文件列表。
     """
     try:
         text = get_clipboard_text() or ""
+        found = False
+        files_data: list[tuple[str, str]] = []
 
-        if not text.strip():
+        # 始终检测 .md 文件（CF_HDROP / file URL，与 CF_TEXT / CF_HTML 独立互不影响）
+        try:
             found, files_data, _ = read_markdown_files_from_clipboard()
-            if found and files_data:
-                parts = [f"[{fn}]\n{content.strip()}" for fn, content in files_data]
-                text = "\n\n".join(parts)
-            if not text.strip():
-                try:
-                    if is_clipboard_files():
-                        files = get_clipboard_files()
-                        if files:
-                            names = [os.path.basename(f) for f in files[:10]]
-                            text = "Files: " + ", ".join(names)
-                            if len(files) > 10:
-                                text += f" (+{len(files) - 10} more)"
-                except Exception:
-                    pass
-            if not text.strip() and not is_clipboard_empty():
-                text = "[non-text clipboard content]"
+        except Exception:
+            pass
+
+        if found and files_data:
+            parts = [f"[{fn}]\n{content.strip()}" for fn, content in files_data]
+            text = "\n\n".join(parts)
+        elif not text.strip():
+            # 无 md 文件也无文本 → 尝试检测普通文件
+            try:
+                if is_clipboard_files():
+                    files = get_clipboard_files()
+                    if files:
+                        names = [os.path.basename(f) for f in files[:10]]
+                        text = "Files: " + ", ".join(names)
+                        if len(files) > 10:
+                            text += f" (+{len(files) - 10} more)"
+            except Exception:
+                pass
+        if not text.strip() and not is_clipboard_empty():
+            text = "[non-text clipboard content]"
 
         preview = text.strip()[:200] if text else ""
 
@@ -181,6 +190,6 @@ def capture_clipboard_content() -> tuple[str, str, str]:
         except Exception:
             pass
 
-        return preview, text, html
+        return preview, text, html, found, len(files_data) if found else 0
     except Exception:
-        return "", "", ""
+        return "", "", "", False, 0

@@ -28,19 +28,24 @@ class BaseWorkflow(ABC):
         # Router 预捕获的剪贴板内容，避免 workflow 内重复读取 clipboard
         self._pre_captured_text: str = ""
         self._pre_captured_html: str = ""
+        self._pre_captured_from_md: bool = False
+        self._pre_captured_md_count: int = 0
 
     def _try_pre_captured(self):
         """尝试使用 Router 预捕获的剪贴板内容，避免重复读取 clipboard。
 
         Returns:
             ("html", html_content, False, 0) — 有预捕获的 HTML
-            ("markdown", text_content, False, 0) — 有预捕获的文本
+            ("markdown", text_content, from_md, md_count) — 有预捕获的文本
             None — 无预捕获内容，需要自行读取剪贴板
         """
+        if not self._pre_captured_html and not self._pre_captured_text:
+            return None
         if self._pre_captured_html and not is_plain_html_fragment(self._pre_captured_html):
             return ("html", self._pre_captured_html, False, 0)
         if self._pre_captured_text:
-            return ("markdown", self._pre_captured_text, False, 0)
+            return ("markdown", self._pre_captured_text,
+                    self._pre_captured_from_md, self._pre_captured_md_count)
         return None
 
     # ---- 元数据（子类按需覆写） ----

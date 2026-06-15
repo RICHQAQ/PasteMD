@@ -118,9 +118,12 @@ class WorkflowRouter:
                 and app_state.config.get("history", {}).get("enabled", True)
             )
             if _history_enabled:
-                content_preview, full_content, original_html = capture_clipboard_content()
+                (content_preview, full_content, original_html,
+                 from_md_file, md_file_count) = capture_clipboard_content()
             else:
                 content_preview = full_content = original_html = ""
+                from_md_file = False
+                md_file_count = 0
 
             routes = self._build_dynamic_routes(window_title)
             workflow = routes.get(target_app, routes[""])
@@ -142,6 +145,8 @@ class WorkflowRouter:
             if _history_enabled:
                 workflow._pre_captured_text = full_content
                 workflow._pre_captured_html = original_html
+                workflow._pre_captured_from_md = from_md_file
+                workflow._pre_captured_md_count = md_file_count
             workflow.execute()
 
         except Exception as e:
