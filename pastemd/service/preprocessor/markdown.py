@@ -1,7 +1,7 @@
 """Markdown content preprocessor."""
 
 from .base import BasePreprocessor
-from ...utils.md_normalizer import normalize_markdown
+from ...utils.md_normalizer import fence_plain_text_code, normalize_markdown
 from ...utils.latex import convert_latex_delimiters
 from ...utils.logging import log
 
@@ -26,6 +26,8 @@ class MarkdownPreprocessor(BasePreprocessor):
             预处理后的 Markdown 文本
         """
         log("Preprocessing Markdown content")
+
+        markdown = fence_plain_text_code(markdown)
 
         # 1. 标准化 Markdown
         if config.get("normalize_markdown", True):

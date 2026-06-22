@@ -3,6 +3,41 @@
 import re
 
 
+def fence_plain_text_code(md_text: str) -> str:
+    """Wrap obvious copied code snippets so Pandoc preserves line breaks."""
+    text = md_text.replace('\r\n', '\n').replace('\r', '\n')
+    stripped = text.strip('\n')
+    lines = stripped.split('\n')
+    non_empty = [line for line in lines if line.strip()]
+    if len(non_empty) < 2 or any(line.lstrip().startswith('```') for line in lines):
+        return md_text
+
+    markdown_markers = (
+        r'^#{1,6}\s+',
+        r'^>\s?',
+        r'^\s*[-*+]\s+',
+        r'^\s*\d+\.\s+',
+        r'^\s*\|.*\|\s*$',
+    )
+    if any(any(re.match(pattern, line) for pattern in markdown_markers) for line in non_empty):
+        return md_text
+
+    # ponytail: heuristic only catches obvious code; use clipboard metadata if false positives matter.
+    keyword = re.compile(
+        r'^\s*(from|import|def|class|if|elif|else|for|while|try|except|with|return|'
+        r'const|let|var|function|export|public|private|protected|static|package|using|namespace|#include)\b'
+    )
+    signal_lines = sum(
+        bool(line[:1] in (' ', '\t') or keyword.match(line) or re.search(r'[{}();=<>[\]]', line))
+        for line in non_empty
+    )
+    if signal_lines < max(2, len(non_empty) // 2):
+        return md_text
+
+    fenced = f"```\n{stripped}\n```"
+    return fenced.replace('\n', '\r\n') if '\r\n' in md_text else fenced
+
+
 def normalize_markdown(md_text: str) -> str:
     """
     规范化 Markdown 文本格式，确保元素之间有适当的空行
@@ -179,4 +214,3 @@ def _should_add_blank_after(current_type: str, index: int, lines: list) -> bool:
         return True
     
     return False
-
