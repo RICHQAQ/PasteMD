@@ -7,7 +7,6 @@ hidden most of the time, and only show it while UI windows are open.
 from __future__ import annotations
 
 import sys
-from typing import Optional
 
 from ...core.state import app_state
 from ...config.paths import get_app_icon_path
@@ -57,11 +56,16 @@ def set_dock_visible(visible: bool) -> None:
             if visible
             else NSApplicationActivationPolicyAccessory
         )
-        if visible:
+        if visible and _should_set_application_icon():
             _set_application_icon(app)
         app.setActivationPolicy_(policy)
     except Exception as exc:
         log(f"Failed to set Dock visibility: {exc}")
+
+
+def _should_set_application_icon() -> bool:
+    """Only packaged apps should override the process Dock icon."""
+    return bool(getattr(sys, "frozen", False))
 
 
 def _set_application_icon(app) -> None:

@@ -58,6 +58,11 @@ MONO_FONT = ("Menlo", 10) if is_macos() else ("Consolas", 10)
 DETAIL_CONTENT_PLAIN = "plain"
 DETAIL_CONTENT_HTML = "html"
 
+
+def _should_set_tk_window_icon() -> bool:
+    return not (is_macos() and not getattr(sys, "frozen", False))
+
+
 # 过滤下拉映射（显示名 → 代码值），从单一起源推导
 def _reverse_display(m):
     """反转 (代码→显示) 为 (显示→代码)，排除空 key 以保留「无」入口。"""
@@ -127,14 +132,15 @@ class HistoryDialog:
         self._root.minsize(700, 450)
         self._root.protocol("WM_DELETE_WINDOW", self._on_window_close)
 
-        try:
-            from ...config.paths import get_app_png_path
-            ico = get_app_png_path()
-            if ico:
-                img = tk.PhotoImage(file=ico)
-                self._root.iconphoto(False, img)
-        except Exception:
-            pass
+        if _should_set_tk_window_icon():
+            try:
+                from ...config.paths import get_app_png_path
+                ico = get_app_png_path()
+                if ico:
+                    img = tk.PhotoImage(file=ico)
+                    self._root.iconphoto(False, img)
+            except Exception:
+                pass
 
         self._build_ui()
         self._refresh_list()
@@ -595,12 +601,13 @@ class HistoryDialog:
         detail.columnconfigure(0, weight=1)
         detail.rowconfigure(3, weight=1)  # content area gets the flex space
 
-        try:
-            from ...config.paths import get_app_png_path
-            img = tk.PhotoImage(file=get_app_png_path())
-            detail.iconphoto(False, img)
-        except Exception:
-            pass
+        if _should_set_tk_window_icon():
+            try:
+                from ...config.paths import get_app_png_path
+                img = tk.PhotoImage(file=get_app_png_path())
+                detail.iconphoto(False, img)
+            except Exception:
+                pass
 
         # ── 基础元数据 (2 列网格) ──
         meta_frame = ttk.Frame(detail, padding=(12, 10))
