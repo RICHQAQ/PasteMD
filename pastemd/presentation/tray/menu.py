@@ -58,6 +58,51 @@ class TrayMenuManager:
     def set_resume_hotkey_callback(self, callback):
         """设置恢复热键的回调函数"""
         self.resume_hotkey_callback = callback
+
+    def handle_app_reopen(self, icon=None) -> None:
+        """Handle macOS app reopen/second-launch events."""
+        if self._focus_existing_dialog():
+            return
+        self._on_open_settings(icon or getattr(app_state, "icon", None), None)
+
+    def _focus_existing_dialog(self) -> bool:
+        for attr_name in ("hotkey_dialog", "history_dialog", "settings_dialog"):
+            dialog = getattr(self, attr_name, None)
+            if dialog is None:
+                continue
+            if not self._dialog_is_alive(dialog):
+                setattr(self, attr_name, None)
+                continue
+            if self._focus_dialog(dialog):
+                return True
+        return False
+
+    def _dialog_is_alive(self, dialog) -> bool:
+        is_alive = getattr(dialog, "is_alive", None)
+        if callable(is_alive):
+            try:
+                return bool(is_alive())
+            except Exception:
+                return False
+        return True
+
+    def _focus_dialog(self, dialog) -> bool:
+        try:
+            activate_app()
+            restore_and_focus = getattr(dialog, "restore_and_focus", None)
+            if callable(restore_and_focus):
+                restore_and_focus()
+                return True
+
+            lift = getattr(dialog, "lift", None)
+            if callable(lift):
+                lift()
+            focus_force = getattr(dialog, "focus_force", None)
+            if callable(focus_force):
+                focus_force()
+            return callable(lift) or callable(focus_force)
+        except Exception:
+            return False
     
     def build_menu(self) -> pystray.Menu:
         """构建托盘菜单"""

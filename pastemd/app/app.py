@@ -222,7 +222,7 @@ def main() -> None:
                     if cmd == "open_settings":
                         # TrayMenuManager 内部会投递到 UI 队列，确保 Tk 在主线程
                         try:
-                            tray_menu_manager._on_open_settings(app_state.icon, None)  # noqa: SLF001
+                            tray_menu_manager.handle_app_reopen(app_state.icon)
                         except Exception as exc:
                             log(f"Failed to open settings from IPC: {exc}")
 
@@ -236,7 +236,7 @@ def main() -> None:
                 from ..utils.macos.reopen import install_reopen_handler
 
                 install_reopen_handler(
-                    lambda: tray_menu_manager._on_open_settings(app_state.icon, None)  # noqa: SLF001
+                    lambda: tray_menu_manager.handle_app_reopen(app_state.icon)
                 )
             except Exception as exc:
                 log(f"Failed to install macOS reopen handler: {exc}")
