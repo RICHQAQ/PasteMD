@@ -8,6 +8,11 @@ import os
 import sys
 from ..core.errors import ClipboardError
 
+try:
+    from bs4 import BeautifulSoup
+except Exception:  # pragma: no cover
+    BeautifulSoup = None
+
 
 # 根据操作系统导入对应的实现
 if sys.platform == "darwin":
@@ -179,17 +184,36 @@ def capture_clipboard_content() -> tuple[str, str, str, bool, int]:
                             text += f" (+{len(files) - 10} more)"
             except Exception:
                 pass
-        if not text.strip() and not is_clipboard_empty():
-            text = "[non-text clipboard content]"
-
-        preview = text.strip()[:200] if text else ""
-
         html = ""
         try:
             html = get_clipboard_html() or ""
         except Exception:
             pass
 
+        html_text = _html_to_plain_text(html)
+        if html_text and not found:
+            text = html_text
+        elif not text.strip() and not is_clipboard_empty():
+            text = "[non-text clipboard content]"
+
+        preview = text.strip()[:200] if text else ""
+
         return preview, text, html, found, len(files_data) if found else 0
     except Exception:
         return "", "", "", False, 0
+
+
+def _html_to_plain_text(html: str) -> str:
+    if not html or BeautifulSoup is None:
+        return ""
+    try:
+        soup = BeautifulSoup(html, "lxml")
+    except Exception:
+        try:
+            soup = BeautifulSoup(html, "html.parser")
+        except Exception:
+            return ""
+
+    for tag in soup(["script", "style", "noscript"]):
+        tag.decompose()
+    return " ".join(soup.get_text(" ", strip=True).split())

@@ -48,6 +48,7 @@ class FilterState:
     date_to: str = ""
 
 ROW_HEIGHT = 24
+HISTORY_AUTO_REFRESH_MS = 1500
 
 # DatePicker 下拉值常量
 _MONTHS = [f"{m:02d}" for m in range(1, 13)]
@@ -115,6 +116,7 @@ class HistoryDialog:
         self._current_page = 0
         self._suppress_trace = False
         self._search_after_id = None
+        self._auto_refresh_after_id = None
 
     # ------------------------------------------------------------------
     # Show / Focus
@@ -144,6 +146,7 @@ class HistoryDialog:
 
         self._build_ui()
         self._refresh_list()
+        self._schedule_auto_refresh()
 
     def lift(self) -> None:
         if self._root:
@@ -374,6 +377,7 @@ class HistoryDialog:
         tree = self._tree
         if tree is None:
             return
+        selected_iids = set(tree.selection())
         for item in tree.get_children():
             tree.delete(item)
 
@@ -408,6 +412,10 @@ class HistoryDialog:
                                 filters_str,
                                 status_icon),
                         tags=(row["status"], "pinned" if is_pinned else ""))
+
+        remaining_selection = [iid for iid in selected_iids if tree.exists(iid)]
+        if remaining_selection:
+            tree.selection_set(remaining_selection)
 
         total = self._hm.count(status_filter=f.status_filter, target_filter=f.target_filter,
                                workflow_filter=f.workflow_filter, content_type_filter=f.content_type_filter,
@@ -483,6 +491,40 @@ class HistoryDialog:
                 text=f"{t('history.stats.total')}: {s['total']}  "
                      f"{t('history.stats.today')}: {s['today']}  {s['file_size_kb']}KB"
             )
+        except Exception:
+            pass
+
+    def _root_exists(self) -> bool:
+        if self._root is None:
+            return False
+        try:
+            return bool(self._root.winfo_exists())
+        except Exception:
+            return False
+
+    def _schedule_auto_refresh(self) -> None:
+        if self._auto_refresh_after_id is not None or not self._root_exists():
+            return
+        self._auto_refresh_after_id = self._root.after(
+            HISTORY_AUTO_REFRESH_MS,
+            self._auto_refresh_if_alive,
+        )
+
+    def _auto_refresh_if_alive(self) -> None:
+        self._auto_refresh_after_id = None
+        if not self._root_exists():
+            return
+        self._refresh_list()
+        self._update_stats()
+        self._schedule_auto_refresh()
+
+    def _cancel_auto_refresh(self) -> None:
+        after_id = self._auto_refresh_after_id
+        self._auto_refresh_after_id = None
+        if after_id is None or self._root is None:
+            return
+        try:
+            self._root.after_cancel(after_id)
         except Exception:
             pass
 
@@ -867,6 +909,7 @@ class HistoryDialog:
         self._nm.notify("PasteMD", t("history.clear.done"), ok=True)
 
     def _on_window_close(self) -> None:
+        self._cancel_auto_refresh()
         if self._on_close:
             self._on_close()
         if self._root:
