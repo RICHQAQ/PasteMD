@@ -99,8 +99,7 @@ class MacOSPermissionsTab:
         canvas.bind("<Configure>", _on_canvas_configure)
 
         def _on_mousewheel(event):
-            if event.delta:
-                canvas.yview_scroll(int(-event.delta / 120), "units")
+            self._scroll_canvas_if_alive(canvas, event)
 
         canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
@@ -208,6 +207,18 @@ class MacOSPermissionsTab:
             foreground="gray",
         )
         last_checked_label.grid(row=20, column=1, columnspan=2, sticky=tk.W, padx=(10, 0), pady=(10, 2))
+
+    @staticmethod
+    def _scroll_canvas_if_alive(canvas: tk.Canvas, event) -> None:
+        """Ignore stale global mousewheel callbacks after the tab is destroyed."""
+        try:
+            if not canvas.winfo_exists():
+                return
+            delta = getattr(event, "delta", 0)
+            if delta:
+                canvas.yview_scroll(int(-delta / 120), "units")
+        except tk.TclError:
+            return
 
     def _make_item(
         self,

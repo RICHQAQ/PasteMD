@@ -10,6 +10,7 @@ import sys
 from typing import Optional
 
 from ...core.state import app_state
+from ...config.paths import get_app_icon_path
 from ..logging import log
 
 
@@ -56,9 +57,25 @@ def set_dock_visible(visible: bool) -> None:
             if visible
             else NSApplicationActivationPolicyAccessory
         )
+        if visible:
+            _set_application_icon(app)
         app.setActivationPolicy_(policy)
     except Exception as exc:
         log(f"Failed to set Dock visibility: {exc}")
+
+
+def _set_application_icon(app) -> None:
+    """Set the Dock/app-switcher icon to the full-color app icon."""
+    try:
+        if not hasattr(app, "setApplicationIconImage_"):
+            return
+        from AppKit import NSImage
+
+        icon = NSImage.alloc().initWithContentsOfFile_(get_app_icon_path())
+        if icon is not None:
+            app.setApplicationIconImage_(icon)
+    except Exception as exc:
+        log(f"Failed to set Dock icon: {exc}")
 
 
 def activate_app() -> None:
@@ -107,4 +124,3 @@ def end_ui_session() -> None:
 
     if refcount <= 0:
         set_dock_visible(False)
-

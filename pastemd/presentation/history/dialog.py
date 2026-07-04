@@ -11,6 +11,7 @@ from ...utils.system_detect import is_macos
 
 from ...service.history import HistoryManager
 from ...service.notification.manager import NotificationManager
+from ...utils.clipboard import set_clipboard_text
 from ...utils.logging import log
 from ...i18n import t
 
@@ -750,11 +751,17 @@ class HistoryDialog:
 
     def _copy_to_clipboard(self, content: str) -> None:
         try:
-            self._root.clipboard_clear()
-            self._root.clipboard_append(content)
+            set_clipboard_text(content)
             self._nm.notify("PasteMD", t("history.copied"), ok=True)
         except Exception as e:
             log(f"History copy failed: {e}")
+            try:
+                if self._root is not None and self._root.winfo_exists():
+                    self._root.clipboard_clear()
+                    self._root.clipboard_append(content)
+                    self._nm.notify("PasteMD", t("history.copied"), ok=True)
+            except Exception as fallback_exc:
+                log(f"History Tk clipboard fallback failed: {fallback_exc}")
 
     def _copy_entry_content(self, entry_id: int) -> None:
         entry = self._hm.get_entry(entry_id)
