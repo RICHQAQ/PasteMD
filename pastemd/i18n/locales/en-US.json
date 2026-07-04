@@ -344,6 +344,8 @@
     "history.detail.error": "Error: ",
     "history.detail.copy": "Copy content",
     "history.detail.copy_html": "HTML Source",
+    "history.detail.content_plain": "Plain text",
+    "history.detail.content_html_source": "HTML source",
     "history.detail.copy_html_clipboard": "Copy to Clipboard",
     "history.detail.copy_html_export": "Export as File...",
     "history.detail.close": "Close",

@@ -11,7 +11,7 @@ from ...utils.system_detect import is_macos
 
 from ...service.history import HistoryManager
 from ...service.notification.manager import NotificationManager
-from ...utils.clipboard import set_clipboard_text
+from ...utils.clipboard import set_clipboard_rich_text, set_clipboard_text
 from ...utils.logging import log
 from ...i18n import t
 
@@ -55,6 +55,8 @@ _DAYS   = [f"{d:02d}" for d in range(1, 32)]
 
 # 跨平台等宽字体：Consolas (Windows) / Menlo (macOS) / TkFixedFont (兜底)
 MONO_FONT = ("Menlo", 10) if is_macos() else ("Consolas", 10)
+DETAIL_CONTENT_PLAIN = "plain"
+DETAIL_CONTENT_HTML = "html"
 
 # 过滤下拉映射（显示名 → 代码值），从单一起源推导
 def _reverse_display(m):
@@ -684,8 +686,11 @@ class HistoryDialog:
         content_frame.rowconfigure(0, weight=1)
 
         ct = entry.get("full_content", "") or entry.get("preview", "")
+        original_html_str = entry.get("original_html", "") or ""
+        default_content_mode = DETAIL_CONTENT_HTML if original_html_str.strip() else DETAIL_CONTENT_PLAIN
+        initial_content = original_html_str if default_content_mode == DETAIL_CONTENT_HTML else ct
         text_widget = tk.Text(content_frame, wrap=tk.WORD, font=MONO_FONT)
-        text_widget.insert("1.0", ct)
+        text_widget.insert("1.0", initial_content)
         text_widget.configure(state=tk.DISABLED)
 
         sb = ttk.Scrollbar(content_frame, orient=tk.VERTICAL, command=text_widget.yview)
@@ -696,54 +701,107 @@ class HistoryDialog:
         # 按钮
         btn_frame = ttk.Frame(detail, padding=(12, 8))
         btn_frame.grid(row=4, column=0, sticky="ew")
+        btn_frame.columnconfigure(3, weight=1)
+
+        content_mode_label = {
+            DETAIL_CONTENT_PLAIN: t("history.detail.content_plain"),
+            DETAIL_CONTENT_HTML: t("history.detail.content_html_source"),
+        }
+        content_mode_by_label = {v: k for k, v in content_mode_label.items()}
+        mode_display_var = tk.StringVar(value=content_mode_label[default_content_mode])
+
+        def _selected_content_mode() -> str:
+            return content_mode_by_label.get(mode_display_var.get(), DETAIL_CONTENT_PLAIN)
+
+        def _refresh_content_view(_event=None) -> None:
+            content = self._detail_content_for_mode(ct, original_html_str, _selected_content_mode())
+            text_widget.configure(state=tk.NORMAL)
+            text_widget.delete("1.0", tk.END)
+            text_widget.insert("1.0", content)
+            text_widget.configure(state=tk.DISABLED)
+
         ttk.Button(btn_frame, text=t("history.detail.copy"),
-                   command=lambda: self._copy_to_clipboard(ct)).pack(side=tk.LEFT, padx=(0, 8))
+                   command=lambda: self._copy_detail_content(
+                       plain_text=ct,
+                       original_html=original_html_str,
+                       content_mode=_selected_content_mode(),
+                   )).grid(row=0, column=0, sticky="w", padx=(0, 8))
 
-        # HTML 源码下拉按钮（仅当有 HTML 来源时显示）
-        original_html_str = entry.get("original_html", "") or ""
+        ttk.Button(
+            btn_frame,
+            text=t("history.detail.copy_html_export"),
+            command=lambda: self._export_detail_content(
+                plain_text=ct,
+                original_html=original_html_str,
+                content_mode=_selected_content_mode(),
+            ),
+        ).grid(row=0, column=1, sticky="w", padx=(0, 8))
+
+        mode_values = [content_mode_label[DETAIL_CONTENT_PLAIN]]
         if original_html_str.strip():
-            full_text = entry.get("full_content", "") or ""
-            self._build_html_dropdown(btn_frame, original_html_str, full_text)
-
-        ttk.Button(btn_frame, text=t("history.detail.close"), command=detail.destroy).pack(side=tk.RIGHT)
-
-    def _copy_html_to_clipboard(self, html: str, plain_text: str = "") -> None:
-        """以 CF_HTML + CF_TEXT 写回剪贴板，复现网页复制时的原始状态。"""
-        try:
-            from ...utils.clipboard import set_clipboard_rich_text
-            set_clipboard_rich_text(html=html, text=plain_text.strip() if plain_text else None)
-            self._nm.notify("PasteMD", t("history.copied_html"), ok=True)
-        except Exception as e:
-            log(f"HTML clipboard copy failed: {e}")
-            self._copy_to_clipboard(html or "")
-
-    def _build_html_dropdown(self, parent: ttk.Frame, html: str, plain_text: str) -> None:
-        """创建 HTML 源码的下拉菜单按钮（复制 / 导出文件）。"""
-        mb = ttk.Menubutton(parent, text=t("history.detail.copy_html"), direction="above")
-        mb.pack(side=tk.LEFT, padx=(0, 8))
-        menu = tk.Menu(mb, tearoff=0)
-        menu.add_command(
-            label=t("history.detail.copy_html_clipboard"),
-            command=lambda: self._copy_html_to_clipboard(html, plain_text),
+            mode_values.append(content_mode_label[DETAIL_CONTENT_HTML])
+        mode_select = ttk.Combobox(
+            btn_frame,
+            textvariable=mode_display_var,
+            values=mode_values,
+            state="readonly",
+            width=12,
         )
-        menu.add_command(
-            label=t("history.detail.copy_html_export"),
-            command=lambda: self._export_html_file(html),
+        mode_select.grid(row=0, column=2, sticky="w", padx=(0, 8))
+        mode_select.bind("<<ComboboxSelected>>", _refresh_content_view)
+
+        ttk.Button(btn_frame, text=t("history.detail.close"), command=detail.destroy).grid(row=0, column=4, sticky="e")
+
+    @staticmethod
+    def _detail_content_for_mode(plain_text: str, original_html: str, content_mode: str) -> str:
+        if content_mode == DETAIL_CONTENT_HTML and original_html.strip():
+            return original_html
+        return plain_text
+
+    def _copy_detail_content(self, *, plain_text: str, original_html: str, content_mode: str) -> None:
+        if content_mode == DETAIL_CONTENT_HTML and original_html.strip():
+            try:
+                set_clipboard_rich_text(html=original_html, text=original_html)
+                self._nm.notify("PasteMD", t("history.copied_html"), ok=True)
+                return
+            except Exception as e:
+                log(f"History HTML clipboard copy failed: {e}")
+        content = self._detail_content_for_mode(plain_text, original_html, content_mode)
+        self._copy_to_clipboard(content)
+
+    def _export_detail_content(self, *, plain_text: str, original_html: str, content_mode: str) -> None:
+        content = self._detail_content_for_mode(plain_text, original_html, content_mode)
+        is_html = content_mode == DETAIL_CONTENT_HTML and original_html.strip()
+        self._export_text_file(
+            content,
+            default_extension=".html" if is_html else ".txt",
+            filetypes=(
+                [("HTML files", "*.html"), ("All files", "*.*")]
+                if is_html else
+                [("Text files", "*.txt"), ("All files", "*.*")]
+            ),
         )
-        mb.configure(menu=menu)
 
     def _export_html_file(self, html: str) -> None:
         """导出原始 HTML 到文件。"""
-        file_path = filedialog.asksaveasfilename(
-            defaultextension=".html",
+        self._export_text_file(
+            html,
+            default_extension=".html",
             filetypes=[("HTML files", "*.html"), ("All files", "*.*")],
+        )
+
+    def _export_text_file(self, content: str, *, default_extension: str, filetypes: list[tuple[str, str]]) -> None:
+        """导出当前详情内容到文件。"""
+        file_path = filedialog.asksaveasfilename(
+            defaultextension=default_extension,
+            filetypes=filetypes,
             title=t("history.detail.copy_html_export"),
         )
         if not file_path:
             return
         try:
             with open(file_path, "w", encoding="utf-8") as f:
-                f.write(html)
+                f.write(content)
             self._nm.notify("PasteMD", t("history.exported_html", path=file_path), ok=True)
         except Exception as e:
             log(f"HTML export failed: {e}")
@@ -766,7 +824,14 @@ class HistoryDialog:
     def _copy_entry_content(self, entry_id: int) -> None:
         entry = self._hm.get_entry(entry_id)
         if entry:
-            self._copy_to_clipboard(entry.get("full_content", "") or entry.get("preview", ""))
+            plain_text = entry.get("full_content", "") or entry.get("preview", "")
+            original_html = entry.get("original_html", "") or ""
+            default_mode = DETAIL_CONTENT_HTML if original_html.strip() else DETAIL_CONTENT_PLAIN
+            self._copy_detail_content(
+                plain_text=plain_text,
+                original_html=original_html,
+                content_mode=default_mode,
+            )
 
     def _copy_selected(self) -> None:
         sel = self._tree.selection()

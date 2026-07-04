@@ -344,6 +344,8 @@
     "history.detail.error": "エラー: ",
     "history.detail.copy": "内容をコピー",
     "history.detail.copy_html": "HTMLソース",
+    "history.detail.content_plain": "プレーンテキスト",
+    "history.detail.content_html_source": "HTMLソース",
     "history.detail.copy_html_clipboard": "クリップボードにコピー",
     "history.detail.copy_html_export": "ファイルにエクスポート...",
     "history.detail.close": "閉じる",

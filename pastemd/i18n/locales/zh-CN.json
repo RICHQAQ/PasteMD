@@ -344,6 +344,8 @@
     "history.detail.error": "错误: ",
     "history.detail.copy": "复制内容",
     "history.detail.copy_html": "HTML 源码",
+    "history.detail.content_plain": "纯文本",
+    "history.detail.content_html_source": "HTML 源码",
     "history.detail.copy_html_clipboard": "复制到剪贴板",
     "history.detail.copy_html_export": "导出为文件...",
     "history.detail.close": "关闭",
