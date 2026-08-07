@@ -21,6 +21,26 @@ PRESERVE_NEWLINE_WHITE_SPACE_RE = re.compile(
 NEWLINE_EXCLUDED_TAGS = {"script", "style", "textarea", "pre", "code"}
 
 
+def _restore_data_math_source_latex(soup: BeautifulSoup) -> None:
+    """Restore LaTeX from clipboard math nodes that expose their source as data."""
+    for tag in soup.select('[role="math"][data-math-source]'):
+        source = tag.get("data-math-source")
+        if not isinstance(source, str) or not source.strip():
+            continue
+
+        source = source.strip()
+        is_display = tag.select_one(".katex-display") is not None
+        if is_display:
+            latex = (
+                source
+                if source.startswith("$$") and source.endswith("$$")
+                else f"$$\n{source}\n$$"
+            )
+        else:
+            latex = source if source.startswith("$") and source.endswith("$") else f"${source}$"
+        tag.replace_with(NavigableString(latex))
+
+
 def _wrap_obsidian_math_latex(soup: BeautifulSoup, html: str) -> None:
     """Restore LaTeX delimiters for Obsidian clipboard math nodes."""
     if OBSIDIAN_CLIPBOARD_MARKER not in html:
@@ -93,6 +113,7 @@ class HtmlPreprocessor(BasePreprocessor):
 
         # 使用 html_formatter 进行清理
         soup = BeautifulSoup(html, "html.parser")
+        _restore_data_math_source_latex(soup)
         _wrap_obsidian_math_latex(soup, html)
         clean_html_content(soup, config)
         _convert_preserved_newlines_to_br(soup)
