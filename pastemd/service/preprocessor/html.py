@@ -21,6 +21,17 @@ PRESERVE_NEWLINE_WHITE_SPACE_RE = re.compile(
 NEWLINE_EXCLUDED_TAGS = {"script", "style", "textarea", "pre", "code"}
 
 
+def _with_latex_delimiters(source: str, *, is_display: bool) -> str:
+    """Wrap a LaTeX source with delimiters unless it already has them."""
+    if is_display:
+        return (
+            source
+            if source.startswith("$$") and source.endswith("$$")
+            else f"$$\n{source}\n$$"
+        )
+    return source if source.startswith("$") and source.endswith("$") else f"${source}$"
+
+
 def _restore_data_math_source_latex(soup: BeautifulSoup) -> None:
     """Restore LaTeX from clipboard math nodes that expose their source as data."""
     for tag in soup.select('[role="math"][data-math-source]'):
@@ -30,14 +41,38 @@ def _restore_data_math_source_latex(soup: BeautifulSoup) -> None:
 
         source = source.strip()
         is_display = tag.select_one(".katex-display") is not None
-        if is_display:
-            latex = (
-                source
-                if source.startswith("$$") and source.endswith("$$")
-                else f"$$\n{source}\n$$"
-            )
-        else:
-            latex = source if source.startswith("$") and source.endswith("$") else f"${source}$"
+        latex = _with_latex_delimiters(source, is_display=is_display)
+        tag.replace_with(NavigableString(latex))
+
+
+def _restore_copy_text_math_latex(soup: BeautifulSoup) -> None:
+    """Restore LaTeX from math nodes whose clipboard source is in copy-text."""
+    selector = ", ".join(
+        (
+            ".math-inline[copy-text]",
+            ".math-block[copy-text]",
+            ".math-display[copy-text]",
+        )
+    )
+    for tag in soup.select(selector):
+        source = tag.get("copy-text")
+        if not isinstance(source, str) or not source.strip():
+            continue
+
+        source = source.strip()
+        classes = set(tag.get("class") or [])
+        is_display = bool(classes & {"math-block", "math-display"})
+
+        if source.startswith(r"\(") and source.endswith(r"\)"):
+            source = source[2:-2].strip()
+            is_display = False
+        elif source.startswith(r"\[") and source.endswith(r"\]"):
+            source = source[2:-2].strip()
+            is_display = True
+
+        if not source:
+            continue
+        latex = _with_latex_delimiters(source, is_display=is_display)
         tag.replace_with(NavigableString(latex))
 
 
@@ -114,6 +149,7 @@ class HtmlPreprocessor(BasePreprocessor):
         # 使用 html_formatter 进行清理
         soup = BeautifulSoup(html, "html.parser")
         _restore_data_math_source_latex(soup)
+        _restore_copy_text_math_latex(soup)
         _wrap_obsidian_math_latex(soup, html)
         clean_html_content(soup, config)
         _convert_preserved_newlines_to_br(soup)
