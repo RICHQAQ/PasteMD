@@ -319,27 +319,32 @@ class SettingsDialog:
                 key="general",
                 label_key="settings.tab.general",
                 creator=self._create_general_tab,
+                collect=self._collect_general,
                 lazy_on_windows=False,
             ),
             "conversion": LazyTabSpec(
                 key="conversion",
                 label_key="settings.tab.conversion",
                 creator=self._create_conversion_tab,
+                collect=self._collect_conversion,
             ),
             "advanced": LazyTabSpec(
                 key="advanced",
                 label_key="settings.tab.advanced",
                 creator=self._create_advanced_tab,
+                collect=self._collect_advanced,
             ),
             "experimental": LazyTabSpec(
                 key="experimental",
                 label_key="settings.tab.experimental",
                 creator=self._create_experimental_tab,
+                collect=self._collect_experimental,
             ),
             "extensions": LazyTabSpec(
                 key="extensions",
                 label_key="settings.tab.extensions",
                 creator=self._create_extensions_tab,
+                collect=self._collect_extensions,
             ),
             "permissions": LazyTabSpec(
                 key="permissions",
@@ -368,7 +373,8 @@ class SettingsDialog:
     def _create_immediate(self, spec: LazyTabSpec) -> None:
         """即时创建标签页并标记已创建。"""
         try:
-            spec.creator(self)
+            # creator 已是绑定到 self 的 bound method，无需再传 self
+            spec.creator()
             self._tab_created.add(spec.key)
         except Exception as e:
             log(f"Failed to create tab '{spec.key}': {e}")
@@ -446,6 +452,91 @@ class SettingsDialog:
             self._suppress_tab_change = False
 
         log(f"Lazy tab created: {key}")
+
+    def _collect_general(self, config: dict) -> None:
+        """收集常规页配置。仅在该页已创建时被 _on_save 调用。"""
+        # 将显示名称映射回代码
+        selected_label = self.lang_var.get()
+        config["language"] = self.lang_map.get(selected_label, "en-US")
+        config["save_dir"] = self.save_dir_var.get()
+        config["keep_file"] = self.keep_file_var.get()
+        config["notify"] = self.notify_var.get()
+        config["startup_notify"] = self.startup_notify_var.get()
+        # Preserve the latest hotkey (may have been changed via HotkeyDialog while Settings is open).
+        latest_hotkey = app_state.config.get("hotkey") or getattr(app_state, "hotkey_str", None)
+        if latest_hotkey:
+            config["hotkey"] = str(latest_hotkey)
+
+        # 映射显示文本回配置值
+        reverse_action_map = {v: k for k, v in get_no_app_action_map().items()}
+        selected_action_text = self.no_app_action_var.get()
+        config["no_app_action"] = reverse_action_map.get(selected_action_text, "open")
+        if is_windows():
+            config["move_cursor_to_end"] = self.move_cursor_var.get()
+
+    def _collect_conversion(self, config: dict) -> None:
+        """收集转换页配置。仅在该页已创建时被 _on_save 调用。"""
+        config["pandoc_path"] = self.pandoc_path_var.get()
+        ref_docx = self.ref_docx_var.get()
+        config["reference_docx"] = ref_docx if ref_docx else None
+
+        if not isinstance(config.get("html_formatting"), dict):
+            config["html_formatting"] = {}
+        config["html_formatting"]["strikethrough_to_del"] = self.strikethrough_var.get()
+
+        selected_horizontal_rule_label = self.horizontal_rule_style_var.get()
+        config["horizontal_rule_style"] = self._horizontal_rule_style_label_to_key.get(
+            selected_horizontal_rule_label,
+            "default",
+        )
+
+        config["md_disable_first_para_indent"] = self.md_indent_var.get()
+        config["html_disable_first_para_indent"] = self.html_indent_var.get()
+        config["markdown_hard_line_breaks"] = self.markdown_hard_line_breaks_var.get()
+
+        # 保存 Pandoc Filters 列表（dict 格式，兼容旧版 str 格式）
+        config["pandoc_filters_by_conversion"] = {
+            key: list(self.filters_by_conversion.get(key, []))
+            for key in self._conversion_filter_keys
+        }
+        config["pandoc_filters"] = list(self.global_filters)
+
+    def _collect_advanced(self, config: dict) -> None:
+        """收集高级页配置。仅在该页已创建时被 _on_save 调用。"""
+        config["enable_excel"] = self.excel_enable_var.get()
+        config["excel_keep_format"] = self.excel_format_var.get()
+        try:
+            paste_delay_value = float(self.paste_delay_var.get())
+            if paste_delay_value < 0:
+                paste_delay_value = 0.0
+        except (TypeError, ValueError):
+            paste_delay_value = DEFAULT_CONFIG.get("paste_delay_s", 0.3)
+        config["paste_delay_s"] = paste_delay_value
+
+    def _collect_experimental(self, config: dict) -> None:
+        """收集实验性页配置。仅在该页已创建时被 _on_save 调用。"""
+        config["Keep_original_formula"] = self.keep_formula_var.get()
+        config["enable_latex_replacements"] = self.enable_latex_replacements_var.get()
+        config["fix_single_dollar_block"] = self.fix_single_dollar_block_var.get()
+        config["docx_auto_table_layout"] = self.docx_auto_table_layout_var.get()
+
+        # pandoc_request_headers（实验性功能）
+        if getattr(self, "pandoc_request_headers_enable_var", None) is not None:
+            if self.pandoc_request_headers_enable_var.get():
+                raw = self.pandoc_request_headers_text.get("1.0", tk.END).splitlines()
+                headers = [line.strip() for line in raw if isinstance(line, str) and line.strip()]
+                config["pandoc_request_headers"] = headers
+            else:
+                # 由于 DEFAULT_CONFIG 中默认包含该字段，不建议删除 key；用空列表表示“禁用任何 header”。
+                config["pandoc_request_headers"] = []
+
+    def _collect_extensions(self, config: dict) -> None:
+        """收集扩展工作流配置。仅在该页已创建时被 _on_save 调用。"""
+        if not self._extensions_tab:
+            return
+        ext_config = config.get("extensible_workflows", {})
+        ext_config.update(self._extensions_tab.get_config())
+        config["extensible_workflows"] = ext_config
 
     def _create_general_tab(self):
         """创建常规设置选项卡"""
@@ -939,148 +1030,29 @@ class SettingsDialog:
 
             # 更新配置字典
             new_config = self.current_config.copy()
-            
-            # 将显示名称映射回代码
-            selected_label = self.lang_var.get()
-            new_config["language"] = self.lang_map.get(selected_label, "en-US")
-            new_config["save_dir"] = self.save_dir_var.get()
-            new_config["keep_file"] = self.keep_file_var.get()
-            new_config["notify"] = self.notify_var.get()
-            new_config["startup_notify"] = self.startup_notify_var.get()
-            # Preserve the latest hotkey (may have been changed via HotkeyDialog while Settings is open).
-            latest_hotkey = app_state.config.get("hotkey") or getattr(app_state, "hotkey_str", None)
-            if latest_hotkey:
-                new_config["hotkey"] = str(latest_hotkey)
 
-            # 获取 action_map 用于映射
-            action_map = get_no_app_action_map()
+            # 按标签页注册表收集配置：仅收集已创建的标签页。
+            # 未创建的懒加载页说明用户未修改，current_config 已含正确值（跳过即可）。
+            for spec in self._tab_specs.values():
+                if spec.collect is None or spec.key not in self._tab_created:
+                    continue
+                # collect 已是绑定到 self 的 bound method，无需再传 self
+                spec.collect(new_config)
 
-            # 映射显示文本回配置值
-            reverse_action_map = {v: k for k, v in action_map.items()}
-            selected_action_text = self.no_app_action_var.get()
-            new_config["no_app_action"] = reverse_action_map.get(selected_action_text, "open")
-            if is_windows():
-                new_config["move_cursor_to_end"] = self.move_cursor_var.get()
-            
-            new_config["pandoc_path"] = self._get_var_value(
-                "pandoc_path_var",
-                self.current_config.get("pandoc_path", "pandoc"),
-            )
-            ref_docx = self._get_var_value(
-                "ref_docx_var",
-                self.current_config.get("reference_docx") or "",
-            )
-            new_config["reference_docx"] = ref_docx if ref_docx else None
-            
-            if not isinstance(new_config.get("html_formatting"), dict):
-                new_config["html_formatting"] = {}
-            current_html_formatting = self.current_config.get("html_formatting", {})
-            if not isinstance(current_html_formatting, dict):
-                current_html_formatting = {}
-            new_config["html_formatting"]["strikethrough_to_del"] = self._get_var_value(
-                "strikethrough_var",
-                current_html_formatting.get("strikethrough_to_del", True),
-            )
-            horizontal_rule_var = getattr(self, "horizontal_rule_style_var", None)
-            if horizontal_rule_var is None:
-                new_config["horizontal_rule_style"] = self.current_config.get(
-                    "horizontal_rule_style",
-                    "default",
-                )
-            else:
-                selected_horizontal_rule_label = horizontal_rule_var.get()
-                new_config["horizontal_rule_style"] = self._horizontal_rule_style_label_to_key.get(
-                    selected_horizontal_rule_label,
-                    "default",
-                )
-            
-            new_config["md_disable_first_para_indent"] = self._get_var_value(
-                "md_indent_var",
-                self.current_config.get("md_disable_first_para_indent", True),
-            )
-            new_config["html_disable_first_para_indent"] = self._get_var_value(
-                "html_indent_var",
-                self.current_config.get("html_disable_first_para_indent", True),
-            )
-            new_config["markdown_hard_line_breaks"] = self._get_var_value(
-                "markdown_hard_line_breaks_var",
-                self.current_config.get("markdown_hard_line_breaks", False),
-            )
-            new_config["Keep_original_formula"] = self._get_var_value(
-                "keep_formula_var",
-                self.current_config.get("Keep_original_formula", False),
-            )
-            new_config["enable_latex_replacements"] = self._get_var_value(
-                "enable_latex_replacements_var",
-                self.current_config.get("enable_latex_replacements", True),
-            )
-            new_config["fix_single_dollar_block"] = self._get_var_value(
-                "fix_single_dollar_block_var",
-                self.current_config.get("fix_single_dollar_block", True),
-            )
-            new_config["docx_auto_table_layout"] = self._get_var_value(
-                "docx_auto_table_layout_var",
-                self.current_config.get("docx_auto_table_layout", False),
-            )
-
-            # pandoc_request_headers（实验性功能）
-            if getattr(self, "pandoc_request_headers_enable_var", None) is not None:
-                if self.pandoc_request_headers_enable_var.get():
-                    raw = self.pandoc_request_headers_text.get("1.0", tk.END).splitlines()
-                    headers = [line.strip() for line in raw if isinstance(line, str) and line.strip()]
-                    new_config["pandoc_request_headers"] = headers
-                else:
-                    # 由于 DEFAULT_CONFIG 中默认包含该字段，不建议删除 key；用空列表表示“禁用任何 header”。
-                    new_config["pandoc_request_headers"] = []
-            
-            new_config["enable_excel"] = self._get_var_value(
-                "excel_enable_var",
-                self.current_config.get("enable_excel", True),
-            )
-            new_config["excel_keep_format"] = self._get_var_value(
-                "excel_format_var",
-                self.current_config.get("excel_keep_format", True),
-            )
-            try:
-                paste_delay_value = float(
-                    self._get_var_value(
-                        "paste_delay_var",
-                        self.current_config.get("paste_delay_s", 0.3),
-                    )
-                )
-                if paste_delay_value < 0:
-                    paste_delay_value = 0.0
-            except (TypeError, ValueError):
-                paste_delay_value = DEFAULT_CONFIG.get("paste_delay_s", 0.3)
-            new_config["paste_delay_s"] = paste_delay_value
-            
-            # 保存 Pandoc Filters 列表（dict 格式，兼容旧版 str 格式）
-            new_config["pandoc_filters_by_conversion"] = {
-                key: list(self.filters_by_conversion.get(key, []))
-                for key in self._conversion_filter_keys
-            }
-            new_config["pandoc_filters"] = list(self.global_filters)
-            
-            # 保存扩展选项卡配置
-            if self._extensions_tab:
-                ext_config = new_config.get("extensible_workflows", {})
-                ext_config.update(self._extensions_tab.get_config())
-                new_config["extensible_workflows"] = ext_config
-            
             # 保存到文件
             self.config_loader.save(new_config)
-            
+
             # 更新全局状态
             app_state.config = new_config
-            
+
             # 显示成功消息（置顶）
             self._show_topmost_message(t("settings.title.success"), t("settings.success.saved"), "info")
-            
+
             if self.on_save_callback:
                 self.on_save_callback()
             self._call_on_close_callback()
             self._safe_destroy()
-            
+
         except Exception as e:
             log(f"Failed to save settings: {e}")
             # 显示错误消息（置顶）
