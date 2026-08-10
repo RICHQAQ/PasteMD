@@ -265,6 +265,8 @@ class SettingsDialog:
         self._tab_created = set()
         self._extensions_tab = None
         self._permissions_tab = None
+        # 懒加载 swap 期间屏蔽 <<NotebookTabChanged>> 重入，防止连锁懒加载
+        self._suppress_tab_change = False
 
         # General 标签页 - 始终即时创建（默认首个可见）
         self._create_general_tab()
@@ -326,6 +328,8 @@ class SettingsDialog:
     def _on_tab_changed(self, event=None) -> None:
         """标签页切换时触发懒加载"""
         try:
+            if self._suppress_tab_change:
+                return
             selected = self.notebook.select()
             idx = self.notebook.index(selected)
             key = self._get_tab_key_by_index(idx)
@@ -361,18 +365,30 @@ class SettingsDialog:
         # 先标记已创建，防止 forget 触发的 <<NotebookTabChanged>> 事件重入
         self._tab_created.add(key)
 
-        # 调用真实创建方法（会在 notebook 末尾添加新框架）
-        creator()
+        # swap 期间屏蔽 <<NotebookTabChanged>> 重入，避免连锁懒加载
+        self._suppress_tab_change = True
+        try:
+            # 调用真实创建方法（会在 notebook 末尾添加新框架）
+            creator()
 
-        # 刚创建的框架在末尾，_tab_map[key] 已被更新
-        real_frame = self._tab_map.get(key)
-        if real_frame is None or real_frame is placeholder:
-            return
+            # 刚创建的框架在末尾，_tab_map[key] 已被更新
+            real_frame = self._tab_map.get(key)
+            if real_frame is None or real_frame is placeholder:
+                return
 
-        # 移动到占位符原本的位置（占位符被推到 idx+1）
-        self.notebook.insert(idx, real_frame)
-        self.notebook.forget(placeholder)
-        placeholder.destroy()
+            # 移动到占位符原本的位置（占位符被推到 idx+1）
+            self.notebook.insert(idx, real_frame)
+            self.notebook.forget(placeholder)
+            placeholder.destroy()
+
+            # forget 选中态的占位符会把选中带到相邻标签（默认行为），这里显式拉回真实框架
+            try:
+                if self.notebook.select() != real_frame:
+                    self.notebook.select(real_frame)
+            except Exception as e:
+                log(f"Failed to re-select tab after lazy swap: {e}")
+        finally:
+            self._suppress_tab_change = False
 
         log(f"Lazy tab created: {key}")
 
@@ -389,6 +405,8 @@ class SettingsDialog:
         # 先标记已创建，防止 forget 触发的 <<NotebookTabChanged>> 事件重入
         self._tab_created.add("extensions")
 
+        # swap 期间屏蔽 <<NotebookTabChanged>> 重入，避免连锁懒加载
+        self._suppress_tab_change = True
         try:
             self._extensions_tab = ExtensionsTab(self.notebook, self.current_config)
             real_frame = self._extensions_tab.frame
@@ -396,10 +414,19 @@ class SettingsDialog:
             self.notebook.insert(idx, real_frame)
             self.notebook.forget(placeholder)
             placeholder.destroy()
+
+            # forget 选中态的占位符会把选中带到相邻标签（默认行为），这里显式拉回真实框架
+            try:
+                if self.notebook.select() != real_frame:
+                    self.notebook.select(real_frame)
+            except Exception as e:
+                log(f"Failed to re-select extensions tab after lazy swap: {e}")
             log("Lazy tab created: extensions")
         except Exception as e:
             log(f"Failed to create extensions tab: {e}")
             self._extensions_tab = None
+        finally:
+            self._suppress_tab_change = False
 
     def _create_general_tab(self):
         """创建常规设置选项卡"""
