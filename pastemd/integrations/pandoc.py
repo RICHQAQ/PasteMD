@@ -15,6 +15,14 @@ from ..utils.logging import log
 LUA_KEEP_ORIGINAL_FORMULA = resource_path("lua/keep-latex-math.lua")
 LUA_LATEX_REPLACEMENTS = resource_path("lua/latex-replacements.lua")
 LUA_NORMALIZE_MARKDOWN_BREAKS = resource_path("lua/normalize-markdown-breaks.lua")
+MARKDOWN_READER_EXTENSIONS = "+tex_math_dollars+raw_tex+tex_math_double_backslash+tex_math_single_backslash"
+
+
+def _markdown_input_format(*, hard_line_breaks: bool = False) -> str:
+    extensions = MARKDOWN_READER_EXTENSIONS
+    if hard_line_breaks:
+        extensions = "+hard_line_breaks" + extensions
+    return "markdown" + extensions
 
 
 def _log_pandoc_stderr_as_warning(stderr: Optional[bytes], *, context: str) -> None:
@@ -181,6 +189,7 @@ class PandocIntegration:
         *,
         Keep_original_formula: bool = False,
         enable_latex_replacements: bool = True,
+        markdown_hard_line_breaks: bool = False,
         custom_filters: Optional[List[str]] = None,
         cwd: Optional[str] = None,
     ) -> str:
@@ -193,7 +202,7 @@ class PandocIntegration:
         """
         cmd = [
             self.pandoc_path,
-            "-f", "markdown+tex_math_dollars+raw_tex+tex_math_double_backslash+tex_math_single_backslash",
+            "-f", _markdown_input_format(hard_line_breaks=markdown_hard_line_breaks),
             "-t", "html",
             "-o", "-",
             "--wrap", "none",
@@ -242,6 +251,7 @@ class PandocIntegration:
         *,
         Keep_original_formula: bool = False,
         enable_latex_replacements: bool = True,
+        markdown_hard_line_breaks: bool = False,
         custom_filters: Optional[List[str]] = None,
         request_headers: Optional[List[str]] = None,
         cwd: Optional[str] = None,
@@ -251,7 +261,7 @@ class PandocIntegration:
         """
         cmd = [
             self.pandoc_path,
-            "-f", "markdown+tex_math_dollars+raw_tex+tex_math_double_backslash+tex_math_single_backslash",
+            "-f", _markdown_input_format(hard_line_breaks=markdown_hard_line_breaks),
             "-t", "rtf",
             "-o", "-",
             "--standalone",
@@ -293,7 +303,7 @@ class PandocIntegration:
 
         return result.stdout
 
-    def convert_to_docx_bytes(self, md_text: str, reference_docx: Optional[str] = None, Keep_original_formula: bool = False, enable_latex_replacements: bool = True, custom_filters: Optional[List[str]] = None, request_headers: Optional[List[str]] = None, cwd: Optional[str] = None) -> bytes:
+    def convert_to_docx_bytes(self, md_text: str, reference_docx: Optional[str] = None, Keep_original_formula: bool = False, enable_latex_replacements: bool = True, markdown_hard_line_breaks: bool = False, custom_filters: Optional[List[str]] = None, request_headers: Optional[List[str]] = None, cwd: Optional[str] = None) -> bytes:
         """
         用 stdin 喂入 Markdown，直接把 DOCX 从 stdout 读到内存（无任何输入文件写盘）
         
@@ -310,7 +320,7 @@ class PandocIntegration:
         """
         cmd = [
             self.pandoc_path,
-            "-f", "markdown+tex_math_dollars+raw_tex+tex_math_double_backslash+tex_math_single_backslash",
+            "-f", _markdown_input_format(hard_line_breaks=markdown_hard_line_breaks),
             "-t", "docx",
             "-o", "-",
             "--highlight-style", "tango",
@@ -529,6 +539,7 @@ class PandocIntegration:
         *,
         strip_preamble: bool = True,
         enable_latex_replacements: bool = True,
+        markdown_hard_line_breaks: bool = False,
         custom_filters: Optional[List[str]] = None,
     ) -> str:
         """
@@ -545,7 +556,7 @@ class PandocIntegration:
         """
         cmd = [
             self.pandoc_path,
-            "-f", "markdown+tex_math_dollars+raw_tex+tex_math_double_backslash+tex_math_single_backslash",
+            "-f", _markdown_input_format(hard_line_breaks=markdown_hard_line_breaks),
             "-t", "latex",
             "-o", "-",
             "--wrap", "none",

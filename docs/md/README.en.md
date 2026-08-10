@@ -13,6 +13,9 @@
   <a href="../../LICENSE">
     <img src="https://img.shields.io/github/license/RICHQAQ/PasteMD?style=flat-square" alt="License">
   </a>
+  <a href="https://gitcode.com/RICHQAQ/PasteMD">
+    <img src="https://gitcode.com/RICHQAQ/PasteMD/star/badge.svg" alt="AtomGitStars">
+  </a>
   <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Word%20%7C%20WPS-5e8d36?style=flat-square&logo=windows&logoColor=white" alt="Platform">
 </p>
@@ -33,9 +36,10 @@
 ## ❤️ Sponsors
 <table>
 <tr>
-<td width="200" align="center" valign="middle"><img src="../../docs/img/Doloffer_logo.png" alt="DolOffer" width="180"></a></td>
+<td width="200" align="center" valign="middle"><a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=pasteMD"><img src="../../docs/img/AtlasCloud_logo.svg" alt="Atlas Cloud" width="180"></a></td>
 <td valign="middle">
-  <a href="https://doloffer.com/friend/PduWP9xx">Thanks to DolOffer for supporting this project! DolOffer offers discounts on popular digital subscriptions such as ChatGPT Plus, Claude, YouTube Premium, Spotify, and Apple Music, with genuine subscriptions, stable service, and reliable after-sales support. Register through the exclusive link and use the coupon code `AI8888` for an extra 10% off. Some products currently require a Hong Kong or South Korea IP to view and purchase.</a></td>
+  <a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=pasteMD">Atlas Cloud</a> is a full-modal AI inference platform that gives developers a single AI API to access video generation, image generation, and LLM APIs. Instead of managing multiple vendor integrations, you connect once and get unified access to 300+ curated models across all modalities.<br>
+  Check out Atlas Cloud's new coding plan promotion for more budget-friendly API access: <a href="https://www.atlascloud.ai/console/coding-plan">https://www.atlascloud.ai/console/coding-plan</a></td>
 </tr>
 </table>
 <!-- sponsor-ad:end -->

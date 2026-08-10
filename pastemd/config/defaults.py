@@ -68,7 +68,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "no_app_action": "open",  # 无应用检测时的动作：open=自动打开, save=仅保存, clipboard=复制到剪贴板, none=无操作
     "md_disable_first_para_indent": True,
     "html_disable_first_para_indent": True,
+    "markdown_hard_line_breaks": False,
     "horizontal_rule_style": "default",  # default=Pandoc 原生横线, paragraph_border=Office/WPS 段落边框线
+    "docx_auto_table_layout": False,  # 实验性：根据内容自动调整 Word/WPS 表格列宽
     "html_formatting": {
         "strikethrough_to_del": True,
     },

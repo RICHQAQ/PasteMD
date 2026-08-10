@@ -16,6 +16,42 @@ from ...i18n import t
 from ...core.state import app_state
 
 
+# Tk 的 ``keysym`` 表示按键产生的字符。在 macOS 上，Option 会改变该字符
+#（例如 Option+V 会产生 ``radical``），而 ``keycode`` 仍然表示实际物理键位。
+# 下表使用的也是全局热键后端所采用的 macOS 虚拟键码。
+_MACOS_KEYCODE_TO_NAME = {
+    0x00: "a", 0x01: "s", 0x02: "d", 0x03: "f", 0x04: "h",
+    0x05: "g", 0x06: "z", 0x07: "x", 0x08: "c", 0x09: "v",
+    0x0B: "b", 0x0C: "q", 0x0D: "w", 0x0E: "e", 0x0F: "r",
+    0x10: "y", 0x11: "t", 0x12: "1", 0x13: "2", 0x14: "3",
+    0x15: "4", 0x16: "6", 0x17: "5", 0x18: "=", 0x19: "9",
+    0x1A: "7", 0x1B: "-", 0x1C: "8", 0x1D: "0", 0x1E: "]",
+    0x1F: "o", 0x20: "u", 0x21: "[", 0x22: "i", 0x23: "p",
+    0x25: "l", 0x26: "j", 0x27: "'", 0x28: "k", 0x29: ";",
+    0x2A: "\\", 0x2B: ",", 0x2C: "/", 0x2D: "n", 0x2E: "m",
+    0x2F: ".", 0x32: "`",
+    0x36: "cmd", 0x37: "cmd",
+    0x38: "shift", 0x3C: "shift",
+    0x3A: "alt", 0x3D: "alt",
+    0x3B: "ctrl", 0x3E: "ctrl",
+}
+
+
+def _normalize_macos_tk_keycode(event: tk.Event) -> Optional[int]:
+    """从 Tk 事件中提取 macOS 虚拟键码，并兼容 Tk 的打包整数格式。"""
+    try:
+        raw_keycode = int(event.keycode)
+    except (AttributeError, TypeError, ValueError):
+        return None
+
+    if 0 <= raw_keycode <= 0xFF:
+        return raw_keycode
+
+    # 部分 Tk/macOS 版本会把虚拟键码放在 32 位整数的最高字节中，
+    # 例如 V 键可能显示为 0x09c025ca，而不是直接显示为 0x09。
+    return (raw_keycode >> 24) & 0xFF
+
+
 class HotkeyDialog:
     """热键设置对话框"""
     
@@ -122,6 +158,15 @@ class HotkeyDialog:
 
     @staticmethod
     def _tk_key_to_name(event: tk.Event) -> Optional[str]:
+        if is_macos():
+            # 优先使用不受键盘布局和 Option 字符转换影响的虚拟键码。
+            # 如果使用 keysym，Option+字母会被记录为生成的特殊符号，
+            # 而不是全局热键监听器所需要的字母键。
+            keycode = _normalize_macos_tk_keycode(event)
+            physical_name = _MACOS_KEYCODE_TO_NAME.get(keycode)
+            if physical_name:
+                return physical_name
+
         keysym = getattr(event, "keysym", "") or ""
         lower = keysym.lower()
 

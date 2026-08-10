@@ -191,6 +191,7 @@ class DocumentGenerator:
             reference_docx=config.get("reference_docx"),
             Keep_original_formula=config.get("Keep_original_formula", False),
             enable_latex_replacements=config.get("enable_latex_replacements", True),
+            markdown_hard_line_breaks=config.get("markdown_hard_line_breaks", False),
             custom_filters=_get_pandoc_filters(config, "md_to_docx"),
             request_headers=request_headers,
             cwd=config.get("save_dir"),
@@ -203,11 +204,16 @@ class DocumentGenerator:
                 disable_first_para_indent=True,
                 target_style="Body Text",
                 horizontal_rule_style=config.get("horizontal_rule_style", "default"),
+                auto_layout_tables=config.get("docx_auto_table_layout", False),
             )
-        elif config.get("horizontal_rule_style") == "paragraph_border":
+        elif (
+            config.get("horizontal_rule_style") == "paragraph_border"
+            or config.get("docx_auto_table_layout", False)
+        ):
             docx_bytes = DocxProcessor.apply_custom_processing(
                 docx_bytes,
-                horizontal_rule_style="paragraph_border",
+                horizontal_rule_style=config.get("horizontal_rule_style", "default"),
+                auto_layout_tables=config.get("docx_auto_table_layout", False),
             )
         
         return docx_bytes
@@ -252,11 +258,16 @@ class DocumentGenerator:
                 disable_first_para_indent=True,
                 target_style="Body Text",
                 horizontal_rule_style=config.get("horizontal_rule_style", "default"),
+                auto_layout_tables=config.get("docx_auto_table_layout", False),
             )
-        elif config.get("horizontal_rule_style") == "paragraph_border":
+        elif (
+            config.get("horizontal_rule_style") == "paragraph_border"
+            or config.get("docx_auto_table_layout", False)
+        ):
             docx_bytes = DocxProcessor.apply_custom_processing(
                 docx_bytes,
-                horizontal_rule_style="paragraph_border",
+                horizontal_rule_style=config.get("horizontal_rule_style", "default"),
+                auto_layout_tables=config.get("docx_auto_table_layout", False),
             )
         
         return docx_bytes
@@ -286,6 +297,7 @@ class DocumentGenerator:
             md_text,
             Keep_original_formula=config.get("Keep_original_formula", True),
             enable_latex_replacements=config.get("enable_latex_replacements", True),
+            markdown_hard_line_breaks=config.get("markdown_hard_line_breaks", False),
             custom_filters=_get_pandoc_filters(config, "md_to_html"),
             cwd=config.get("save_dir"),
         )
@@ -304,6 +316,7 @@ class DocumentGenerator:
             md_text,
             Keep_original_formula=config.get("Keep_original_formula", True),
             enable_latex_replacements=config.get("enable_latex_replacements", True),
+            markdown_hard_line_breaks=config.get("markdown_hard_line_breaks", False),
             custom_filters=_get_pandoc_filters(config, "md_to_rtf"),
             request_headers=request_headers,
             cwd=config.get("save_dir"),
@@ -336,5 +349,6 @@ class DocumentGenerator:
             md_text,
             strip_preamble=True,
             enable_latex_replacements=config.get("enable_latex_replacements", True),
+            markdown_hard_line_breaks=config.get("markdown_hard_line_breaks", False),
             custom_filters=_get_pandoc_filters(config, "md_to_latex"),
         )

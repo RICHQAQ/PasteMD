@@ -13,6 +13,9 @@
   <a href="../../LICENSE">
     <img src="https://img.shields.io/github/license/RICHQAQ/PasteMD?style=flat-square" alt="License">
   </a>
+  <a href="https://gitcode.com/RICHQAQ/PasteMD">
+    <img src="https://gitcode.com/RICHQAQ/PasteMD/star/badge.svg" alt="AtomGitStars">
+  </a>
   <img src="https://img.shields.io/badge/Python-3.12%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.12+">
   <img src="https://img.shields.io/badge/Platform-Windows%20%7C%20Word%20%7C%20WPS-5e8d36?style=flat-square&logo=windows&logoColor=white" alt="Platform">
 </p>
@@ -33,9 +36,10 @@
 ## ❤️ スポンサー
 <table>
 <tr>
-<td width="200" align="center" valign="middle"><img src="../../docs/img/Doloffer_logo.png" alt="DolOffer" width="180"></a></td>
+<td width="200" align="center" valign="middle"><a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=pasteMD"><img src="../../docs/img/AtlasCloud_logo.svg" alt="Atlas Cloud" width="180"></a></td>
 <td valign="middle">
-  <a href="https://doloffer.com/friend/PduWP9xx">本プロジェクトをご支援いただいている DolOffer に感謝します！DolOffer は ChatGPT Plus、Claude、YouTube Premium、Spotify、Apple Music などの人気デジタルサブスクリプションをお得に提供しており、正規サブスクリプション、安定したサービス、安心のアフターサポートを提供しています。専用リンクから登録し、クーポンコード `AI8888` を使用すると、さらに 10% 割引になります。一部の商品は現在、香港または韓国の IP から閲覧・購入する必要があります。</a></td>
+  <a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=pasteMD">Atlas Cloud</a> は、開発者が単一の AI API で動画生成、画像生成、LLM API にアクセスできるフルモーダル AI 推論プラットフォームです。複数ベンダーとの連携を管理する代わりに、一度接続するだけで、あらゆるモダリティに対応した 300 以上の厳選モデルを統合的に利用できます。<br>
+  Atlas Cloud の新しい Coding Plan プロモーションで、より予算にやさしい API アクセスを確認できます：<a href="https://www.atlascloud.ai/console/coding-plan">https://www.atlascloud.ai/console/coding-plan</a></td>
 </tr>
 </table>
 <!-- sponsor-ad:end -->

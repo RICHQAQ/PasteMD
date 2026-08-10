@@ -614,6 +614,19 @@ class SettingsDialog:
         self.html_indent_var = tk.BooleanVar(value=self.current_config.get("html_disable_first_para_indent", True))
         ttk.Checkbutton(content, text=t("settings.conversion.html_indent"), variable=self.html_indent_var).grid(row=current_row+5, column=0, columnspan=3, sticky=tk.W, pady=2)
 
+        self.markdown_hard_line_breaks_var = tk.BooleanVar(value=self.current_config.get("markdown_hard_line_breaks", False))
+        ttk.Checkbutton(
+            content,
+            text=t("settings.conversion.markdown_hard_line_breaks"),
+            variable=self.markdown_hard_line_breaks_var,
+        ).grid(row=current_row+6, column=0, columnspan=3, sticky=tk.W, pady=(8, 2))
+        ttk.Label(
+            content,
+            text=t("settings.conversion.markdown_hard_line_breaks_note"),
+            foreground="gray",
+            font=("", 8),
+        ).grid(row=current_row+7, column=0, columnspan=3, sticky=tk.W, padx=(20, 0), pady=(0, 5))
+
     def _create_advanced_tab(self):
         """创建高级设置选项卡"""
         frame = ttk.Frame(self.notebook, padding=10)
@@ -671,6 +684,20 @@ class SettingsDialog:
         fix_dollar_label = ttk.Label(frame, text=fix_dollar_note, foreground="gray", font=("", 8))
         fix_dollar_label.grid(row=4, column=0, sticky=tk.W, padx=(20, 0), pady=(0, 5))
 
+        self.docx_auto_table_layout_var = tk.BooleanVar(value=self.current_config.get("docx_auto_table_layout", False))
+        ttk.Checkbutton(
+            frame,
+            text=t("settings.conversion.docx_auto_table_layout"),
+            variable=self.docx_auto_table_layout_var,
+        ).grid(row=5, column=0, sticky=tk.W, pady=5)
+
+        ttk.Label(
+            frame,
+            text=t("settings.conversion.docx_auto_table_layout_note"),
+            foreground="gray",
+            font=("", 8),
+        ).grid(row=6, column=0, sticky=tk.W, padx=(20, 0), pady=(0, 5))
+
         # Pandoc request headers（用于下载远程图片等资源时附加请求头）
         self._pandoc_request_headers_example = [
             "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -689,20 +716,20 @@ class SettingsDialog:
             frame,
             text=t("settings.conversion.pandoc_request_headers"),
             font=("", 10, "bold"),
-        ).grid(row=5, column=0, sticky=tk.W, pady=(10, 5))
+        ).grid(row=7, column=0, sticky=tk.W, pady=(10, 5))
 
         ttk.Checkbutton(
             frame,
             text=t("settings.conversion.pandoc_request_headers_enable"),
             variable=self.pandoc_request_headers_enable_var,
             command=self._toggle_pandoc_request_headers_state,
-        ).grid(row=6, column=0, sticky=tk.W, pady=2)
+        ).grid(row=8, column=0, sticky=tk.W, pady=2)
 
         if not initial_headers:
             initial_headers = self._pandoc_request_headers_example
 
         headers_frame = ttk.Frame(frame)
-        headers_frame.grid(row=7, column=0, sticky=tk.EW, padx=(20, 0), pady=(0, 5))
+        headers_frame.grid(row=9, column=0, sticky=tk.EW, padx=(20, 0), pady=(0, 5))
         headers_frame.columnconfigure(0, weight=1)
 
         self.pandoc_request_headers_text = tk.Text(headers_frame, height=4, wrap="word")
@@ -722,13 +749,13 @@ class SettingsDialog:
             text=t("settings.conversion.pandoc_request_headers_note"),
             foreground="gray",
             font=("", 8),
-        ).grid(row=8, column=0, sticky=tk.W, padx=(20, 0), pady=(0, 5))
+        ).grid(row=10, column=0, sticky=tk.W, padx=(20, 0), pady=(0, 5))
 
         ttk.Button(
             frame,
             text=t("settings.conversion.pandoc_request_headers_fill_example"),
             command=self._fill_pandoc_request_headers_example,
-        ).grid(row=9, column=0, sticky=tk.W, padx=(20, 0), pady=(0, 5))
+        ).grid(row=11, column=0, sticky=tk.W, padx=(20, 0), pady=(0, 5))
 
     def _set_pandoc_request_headers_text(self, headers: list[str]) -> None:
         try:
@@ -929,6 +956,10 @@ class SettingsDialog:
                 "html_indent_var",
                 self.current_config.get("html_disable_first_para_indent", True),
             )
+            new_config["markdown_hard_line_breaks"] = self._get_var_value(
+                "markdown_hard_line_breaks_var",
+                self.current_config.get("markdown_hard_line_breaks", False),
+            )
             new_config["Keep_original_formula"] = self._get_var_value(
                 "keep_formula_var",
                 self.current_config.get("Keep_original_formula", False),
@@ -940,6 +971,10 @@ class SettingsDialog:
             new_config["fix_single_dollar_block"] = self._get_var_value(
                 "fix_single_dollar_block_var",
                 self.current_config.get("fix_single_dollar_block", True),
+            )
+            new_config["docx_auto_table_layout"] = self._get_var_value(
+                "docx_auto_table_layout_var",
+                self.current_config.get("docx_auto_table_layout", False),
             )
 
             # pandoc_request_headers（实验性功能）
