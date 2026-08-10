@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import os
 import webbrowser
 import tkinter as tk
@@ -33,8 +34,8 @@ class LazyTabSpec:
 
     key: str
     label_key: str  # i18n key，如 "settings.tab.conversion"
-    creator: Callable[["SettingsDialog"], None]  # 完整创建（懒加载 swap 与即时创建共用）
-    collect: Optional[Callable[["SettingsDialog", dict], None]] = None  # 把本页配置写入 config；None=无配置可收集
+    creator: Callable[[], None]  # bound method（已绑定 self），懒加载 swap 与即时创建共用
+    collect: Optional[Callable[[dict], None]] = None  # bound method（已绑定 self），把本页配置写入 config；None=无配置可收集
     lazy_on_windows: bool = True  # Windows 上是否懒加载
     enabled: Callable[[], bool] = lambda: True  # 平台门槛，如 permissions 仅 macOS
 
@@ -245,8 +246,9 @@ class SettingsDialog:
             if not self.is_alive():
                 return
             self._create_widgets()
-            if self._initial_tab and self._initial_tab != "general":
-                # 标签页可能已由即时创建路径创建（macOS），也可能还未创建（Windows 懒加载）
+            if self._initial_tab:
+                # 标签页可能已由即时创建路径创建（macOS / 非懒加载页），也可能还未创建（Windows 懒加载）。
+                # 已创建则无需懒加载；未创建且是懒加载页则触发 swap。
                 if self._initial_tab not in self._tab_created:
                     self._lazy_create_tab_at(self._initial_tab)
                 self.select_tab(self._initial_tab)
@@ -283,7 +285,8 @@ class SettingsDialog:
         self._tab_created = set()
         self._extensions_tab = None
         self._permissions_tab = None
-        # 懒加载 swap 期间屏蔽 <<NotebookTabChanged>> 重入，防止连锁懒加载
+        # swap 期间临时屏蔽 <<NotebookTabChanged>> 重入（防 swap 内部 forget 触发的同步事件）。
+        # 真正的连锁防护是 swap 尾部显式 re-select 选中态 + _tab_created 记录已创建页。
         self._suppress_tab_change = False
 
         # 标签页注册表（顺序即展示顺序）
@@ -311,6 +314,11 @@ class SettingsDialog:
 
         # 避免首次打开时就选中首个输入框
         self.root.after_idle(self._clear_initial_selection)
+
+    def _tab_label(self, key: str) -> str:
+        """按注册表 label_key 解析标签文本（单一真相源）。"""
+        spec = self._tab_specs.get(key)
+        return t(spec.label_key) if spec else key
 
     def _build_tab_specs(self) -> Dict[str, LazyTabSpec]:
         """构建标签页注册表：新增标签页只需在此加一条。"""
@@ -350,7 +358,6 @@ class SettingsDialog:
                 key="permissions",
                 label_key="settings.tab.permissions",
                 creator=self._create_permissions_tab,
-                lazy_on_windows=True,
                 enabled=lambda: is_macos(),
             ),
         }
@@ -423,11 +430,9 @@ class SettingsDialog:
         except Exception:
             return
 
-        # 先标记已创建，防止 forget 触发的 <<NotebookTabChanged>> 事件重入
-        self._tab_created.add(key)
-
         # swap 期间屏蔽 <<NotebookTabChanged>> 重入，避免连锁懒加载
         self._suppress_tab_change = True
+        swap_complete = False
         try:
             # 调用真实创建方法（会在 notebook 末尾添加新框架）
             creator()
@@ -442,16 +447,39 @@ class SettingsDialog:
             self.notebook.forget(placeholder)
             placeholder.destroy()
 
-            # forget 选中态的占位符会把选中带到相邻标签（默认行为），这里显式拉回真实框架
+            # forget 选中态的占位符会把选中带到相邻标签（默认行为），这里显式拉回真实框架。
+            # 注意：nb.select() 返回 tab_id 字符串，real_frame 是 Widget 对象，二者不可直接比较，
+            # 统一用 str() 比较。
             try:
-                if self.notebook.select() != real_frame:
+                if str(self.notebook.select()) != str(real_frame):
                     self.notebook.select(real_frame)
             except Exception as e:
                 log(f"Failed to re-select tab after lazy swap: {e}")
+
+            # swap 完全成功后才标记已创建，异常时保持占位符可重试、且 _on_save 不会收集半成品页
+            self._tab_created.add(key)
+            swap_complete = True
         finally:
             self._suppress_tab_change = False
+            if not swap_complete:
+                # swap 中途失败：尽量恢复占位符状态。
+                # 若 creator 已 add 半成品 real frame（非占位符），先把它从 notebook 移除并销毁，
+                # 避免残留孤儿死标签；占位符若仍存在则保留可重试。
+                try:
+                    current = self._tab_map.get(key)
+                    if current is not None and current is not placeholder:
+                        try:
+                            self.notebook.forget(current)
+                            current.destroy()
+                        except Exception:
+                            pass  # 半成品 frame 可能已不在 notebook 中
+                    if placeholder.winfo_exists():
+                        self._tab_map[key] = placeholder
+                except Exception as e:
+                    log(f"Failed to restore placeholder after failed swap for '{key}': {e}")
 
-        log(f"Lazy tab created: {key}")
+        if swap_complete:
+            log(f"Lazy tab created: {key}")
 
     def _collect_general(self, config: dict) -> None:
         """收集常规页配置。仅在该页已创建时被 _on_save 调用。"""
@@ -501,17 +529,29 @@ class SettingsDialog:
         }
         config["pandoc_filters"] = list(self.global_filters)
 
+    @staticmethod
+    def _sanitize_paste_delay(value: Any) -> float:
+        """将 paste_delay_s 规范为合法的非负浮点数（含默认值兜底）。
+
+        无论 advanced 页是否已创建都要调用，保证坏值（如手改配置为 "abc"、NaN、
+        无穷大）在保存时被修复，避免下游 time.sleep(paste_delay_s) 抛异常。
+        """
+        try:
+            delay = float(value)
+        except (TypeError, ValueError):
+            return float(DEFAULT_CONFIG.get("paste_delay_s", 0.3))
+        # 负数归零（负延迟无意义）；NaN/±Inf 不抛异常但会让 time.sleep 崩溃，回落默认值
+        if math.isnan(delay) or math.isinf(delay):
+            return float(DEFAULT_CONFIG.get("paste_delay_s", 0.3))
+        if delay < 0:
+            return 0.0
+        return delay
+
     def _collect_advanced(self, config: dict) -> None:
         """收集高级页配置。仅在该页已创建时被 _on_save 调用。"""
         config["enable_excel"] = self.excel_enable_var.get()
         config["excel_keep_format"] = self.excel_format_var.get()
-        try:
-            paste_delay_value = float(self.paste_delay_var.get())
-            if paste_delay_value < 0:
-                paste_delay_value = 0.0
-        except (TypeError, ValueError):
-            paste_delay_value = DEFAULT_CONFIG.get("paste_delay_s", 0.3)
-        config["paste_delay_s"] = paste_delay_value
+        config["paste_delay_s"] = self._sanitize_paste_delay(self.paste_delay_var.get())
 
     def _collect_experimental(self, config: dict) -> None:
         """收集实验性页配置。仅在该页已创建时被 _on_save 调用。"""
@@ -542,7 +582,7 @@ class SettingsDialog:
         """创建常规设置选项卡"""
         frame = ttk.Frame(self.notebook, padding=10)
         frame.columnconfigure(1, weight=1)
-        self.notebook.add(frame, text=t("settings.tab.general"))
+        self.notebook.add(frame, text=self._tab_label("general"))
         self._tab_map["general"] = frame
         
         # 保存目录
@@ -649,7 +689,7 @@ class SettingsDialog:
         frame = ttk.Frame(self.notebook)
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
-        self.notebook.add(frame, text=t("settings.tab.conversion"))
+        self.notebook.add(frame, text=self._tab_label("conversion"))
         self._tab_map["conversion"] = frame
 
         canvas = tk.Canvas(frame, highlightthickness=0)
@@ -767,7 +807,7 @@ class SettingsDialog:
     def _create_advanced_tab(self):
         """创建高级设置选项卡"""
         frame = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(frame, text=t("settings.tab.advanced"))
+        self.notebook.add(frame, text=self._tab_label("advanced"))
         self._tab_map["advanced"] = frame
         frame.columnconfigure(1, weight=1)
         
@@ -794,7 +834,7 @@ class SettingsDialog:
     def _create_experimental_tab(self):
         """创建实验性功能选项卡"""
         frame = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(frame, text=t("settings.tab.experimental"))
+        self.notebook.add(frame, text=self._tab_label("experimental"))
         self._tab_map["experimental"] = frame
         frame.columnconfigure(0, weight=1)
         
@@ -1036,8 +1076,17 @@ class SettingsDialog:
             for spec in self._tab_specs.values():
                 if spec.collect is None or spec.key not in self._tab_created:
                     continue
-                # collect 已是绑定到 self 的 bound method，无需再传 self
-                spec.collect(new_config)
+                # collect 已是绑定到 self 的 bound method，无需再传 self。
+                # 兜底：仅捕获 AttributeError（页异常创建导致的 Tk var 缺失），
+                # 记录并跳过该页，未收集到的键沿用 current_config 原值。
+                # 其他异常（TypeError/KeyError 等）仍冒泡到外层使整次保存可见失败。
+                try:
+                    spec.collect(new_config)
+                except AttributeError as e:
+                    log(f"Skip collecting tab '{spec.key}': {e}")
+
+            # 无条件规范 paste_delay_s：即使 advanced 页未创建，也修复手改配置引入的坏值
+            new_config["paste_delay_s"] = self._sanitize_paste_delay(new_config.get("paste_delay_s"))
 
             # 保存到文件
             self.config_loader.save(new_config)
