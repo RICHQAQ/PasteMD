@@ -9,14 +9,14 @@ GUI 相关测试需要可用的 Tk 显示；无显示环境（如 CI headless）
 """
 
 import copy
-import sys
 import tkinter as tk
+from dataclasses import replace
 from tkinter import ttk
 
 import pytest
 
 from pastemd.config.defaults import DEFAULT_CONFIG
-from pastemd.presentation.settings.dialog import LazyTabSpec, SettingsDialog
+from pastemd.presentation.settings.dialog import SettingsDialog
 
 
 # ---------------------------------------------------------------------------
@@ -31,7 +31,6 @@ def test_build_tab_specs_registry():
         "general", "conversion", "advanced", "experimental", "extensions", "permissions",
     ]
     for key, spec in specs.items():
-        assert spec.key == key
         assert spec.label_key
         assert callable(spec.creator)
     # general 非懒加载；conversion 懒加载；permissions 仅当前平台启用（macOS True/其他 False）
@@ -82,18 +81,18 @@ def _build_minimal_dialog():
     obj._tab_specs = obj._build_tab_specs()
 
     # 模拟 Windows _create_widgets 的创建循环
-    for spec in obj._tab_specs.values():
+    for key, spec in obj._tab_specs.items():
         if not spec.enabled():
             continue
         if spec.lazy_on_windows:
             placeholder = ttk.Frame(obj.notebook)
-            obj.notebook.add(placeholder, text=obj._tab_label(spec.key))
-            obj._tab_map[spec.key] = placeholder
+            obj.notebook.add(placeholder, text=obj._tab_label(key))
+            obj._tab_map[key] = placeholder
         else:
             frame = ttk.Frame(obj.notebook)
-            obj.notebook.add(frame, text=obj._tab_label(spec.key))
-            obj._tab_map[spec.key] = frame
-            obj._tab_created.add(spec.key)
+            obj.notebook.add(frame, text=obj._tab_label(key))
+            obj._tab_map[key] = frame
+            obj._tab_created.add(key)
 
     obj.notebook.bind("<<NotebookTabChanged>>", obj._on_tab_changed)
     return obj
@@ -166,6 +165,7 @@ def test_lazy_swap_keeps_selection_and_no_chain(tk_dialog):
     确保"无连锁"断言能捕获回归（若只 swap 未选中的占位符，断言是空洞守卫）。
     """
     dlg = tk_dialog
+    initial_count = len(dlg.notebook.tabs())
 
     def creator():
         real = ttk.Frame(dlg.notebook)
@@ -184,7 +184,7 @@ def test_lazy_swap_keeps_selection_and_no_chain(tk_dialog):
 
     selected = dlg.notebook.select()
     assert str(selected) == str(dlg._tab_map["conversion"])  # 选中停在真实 frame
-    assert len(dlg.notebook.tabs()) == 5  # 占位被替换而非追加
+    assert len(dlg.notebook.tabs()) == initial_count  # 占位被替换而非追加（平台无关）
     assert dlg._tab_created == {"general", "conversion"}  # 无连锁懒加载
 
 
@@ -202,6 +202,54 @@ def test_lazy_swap_creator_failure_keeps_placeholder(tk_dialog):
 
     assert "advanced" not in dlg._tab_created
     assert dlg._tab_map["advanced"] is ph_before  # 占位符未动
+
+
+@_needs_tk
+def test_lazy_swap_failure_after_add_cleans_orphan(tk_dialog):
+    """creator 已 add frame 但尚未更新映射就失败时，不留下孤儿 tab。
+
+    用相对初始 tab 数做断言（delta），避免依赖平台特定数量（macOS 含 permissions
+    时为 6，Windows 为 5）。
+    """
+    dlg = tk_dialog
+    initial_count = len(dlg.notebook.tabs())
+    ph_before = dlg._tab_map["advanced"]
+
+    def partial_creator():
+        real = ttk.Frame(dlg.notebook)
+        dlg.notebook.add(real, text="partial")
+        raise RuntimeError("failed after add")
+
+    with pytest.raises(RuntimeError):
+        dlg._do_lazy_swap("advanced", partial_creator)
+
+    assert len(dlg.notebook.tabs()) == initial_count  # 无孤儿 tab 残留
+    assert dlg._tab_map["advanced"] is ph_before
+    assert "advanced" not in dlg._tab_created
+
+
+@_needs_tk
+def test_lazy_swap_failure_not_added_cleans_mapping(tk_dialog):
+    """creator 建 frame 存入 _tab_map 但未 add 到 notebook 就失败时，清理半成品映射。
+
+    覆盖 _do_lazy_swap 恢复逻辑的 not-added 兜底分支（frame 不在 tabs_before 差异集里，
+    走 current 的 _discard_tab_widget 清理），锁定依赖 Tcl 语义的兜底路径。
+    """
+    dlg = tk_dialog
+    initial_count = len(dlg.notebook.tabs())
+    ph_before = dlg._tab_map["advanced"]
+
+    def not_added_creator():
+        real = ttk.Frame(dlg.notebook)  # 只创建 frame 并写入映射，不 add 到 notebook
+        dlg._tab_map["advanced"] = real
+        raise RuntimeError("failed before add")
+
+    with pytest.raises(RuntimeError):
+        dlg._do_lazy_swap("advanced", not_added_creator)
+
+    assert len(dlg.notebook.tabs()) == initial_count  # 未 add 的 frame 不产生孤儿 tab
+    assert dlg._tab_map["advanced"] is ph_before  # 映射恢复为占位符
+    assert "advanced" not in dlg._tab_created
 
 
 # ---------------------------------------------------------------------------
@@ -270,3 +318,30 @@ def test_on_save_skips_uncreated_tabs_and_collects_created():
     assert captured.get("Keep_original_formula") == dlg.current_config["Keep_original_formula"]
     # paste_delay_s 被无条件 sanitize（坏值回落默认）
     assert captured.get("paste_delay_s") == float(DEFAULT_CONFIG.get("paste_delay_s", 0.3))
+
+
+@_needs_tk
+def test_on_save_collection_error_does_not_save_or_mutate_current_config():
+    """collector 异常时保存失败可见，且不会写文件或污染原配置。"""
+    dlg = _build_save_ready_dialog()
+    original_html_formatting = copy.deepcopy(dlg.current_config["html_formatting"])
+    save_calls = []
+    messages = []
+
+    def bad_collect(config):
+        config["html_formatting"]["strikethrough_to_del"] = False
+        raise AttributeError("collector bug")
+
+    dlg._tab_specs["general"] = replace(dlg._tab_specs["general"], collect=bad_collect)
+    dlg.config_loader = type("L", (), {"save": lambda self, cfg: save_calls.append(cfg)})()
+    dlg._show_topmost_message = lambda *args: messages.append(args)
+    dlg._confirm_keep_formula_enable = lambda: True
+    dlg._call_on_close_callback = lambda: None
+    dlg._safe_destroy = lambda: None
+    dlg.on_save_callback = None
+
+    dlg._on_save()
+
+    assert save_calls == []
+    assert dlg.current_config["html_formatting"] == original_html_formatting
+    assert messages[-1][2] == "error"

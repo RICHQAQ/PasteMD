@@ -27,12 +27,12 @@ if is_macos():
 
 @dataclass(frozen=True)
 class LazyTabSpec:
-    """标签页注册表条目：一个标签页的全部信息集中在此一条记录里。
+    """标签页注册表条目：一个标签页除 key 外的全部信息。
 
-    新增标签页只需在 _build_tab_specs 加一条。
+    key 由注册表 dict 的键提供（见 _build_tab_specs），spec 实例本身不携带 key，
+    避免键值双份冗余。新增标签页只需在 _build_tab_specs 加一条。
     """
 
-    key: str
     label_key: str  # i18n key，如 "settings.tab.conversion"
     creator: Callable[[], None]  # bound method（已绑定 self），懒加载 swap 与即时创建共用
     collect: Optional[Callable[[dict], None]] = None  # bound method（已绑定 self），把本页配置写入 config；None=无配置可收集
@@ -294,20 +294,20 @@ class SettingsDialog:
 
         if is_macos():
             # macOS 性能足够，全部标签页即时创建，避免懒加载的标签切换延迟
-            for spec in self._tab_specs.values():
+            for key, spec in self._tab_specs.items():
                 if spec.enabled():
-                    self._create_immediate(spec)
+                    self._create_immediate(key, spec)
         else:
             # Windows 低配机器：懒加载，仅加占位符，点击标签时才创建
-            for spec in self._tab_specs.values():
+            for key, spec in self._tab_specs.items():
                 if not spec.enabled():
                     continue
                 if spec.lazy_on_windows:
                     placeholder = ttk.Frame(self.notebook)
                     self.notebook.add(placeholder, text=t(spec.label_key))
-                    self._tab_map[spec.key] = placeholder
+                    self._tab_map[key] = placeholder
                 else:
-                    self._create_immediate(spec)
+                    self._create_immediate(key, spec)
 
             # 监听标签页切换，触发懒加载
             self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
@@ -324,38 +324,32 @@ class SettingsDialog:
         """构建标签页注册表：新增标签页只需在此加一条。"""
         return {
             "general": LazyTabSpec(
-                key="general",
                 label_key="settings.tab.general",
                 creator=self._create_general_tab,
                 collect=self._collect_general,
                 lazy_on_windows=False,
             ),
             "conversion": LazyTabSpec(
-                key="conversion",
                 label_key="settings.tab.conversion",
                 creator=self._create_conversion_tab,
                 collect=self._collect_conversion,
             ),
             "advanced": LazyTabSpec(
-                key="advanced",
                 label_key="settings.tab.advanced",
                 creator=self._create_advanced_tab,
                 collect=self._collect_advanced,
             ),
             "experimental": LazyTabSpec(
-                key="experimental",
                 label_key="settings.tab.experimental",
                 creator=self._create_experimental_tab,
                 collect=self._collect_experimental,
             ),
             "extensions": LazyTabSpec(
-                key="extensions",
                 label_key="settings.tab.extensions",
                 creator=self._create_extensions_tab,
                 collect=self._collect_extensions,
             ),
             "permissions": LazyTabSpec(
-                key="permissions",
                 label_key="settings.tab.permissions",
                 creator=self._create_permissions_tab,
                 enabled=lambda: is_macos(),
@@ -377,14 +371,14 @@ class SettingsDialog:
         self._permissions_tab = MacOSPermissionsTab(self.notebook, self.root)
         self._tab_map["permissions"] = self._permissions_tab.frame
 
-    def _create_immediate(self, spec: LazyTabSpec) -> None:
+    def _create_immediate(self, key: str, spec: LazyTabSpec) -> None:
         """即时创建标签页并标记已创建。"""
         try:
             # creator 已是绑定到 self 的 bound method，无需再传 self
             spec.creator()
-            self._tab_created.add(spec.key)
+            self._tab_created.add(key)
         except Exception as e:
-            log(f"Failed to create tab '{spec.key}': {e}")
+            log(f"Failed to create tab '{key}': {e}")
 
     def _get_tab_key_by_index(self, idx: int) -> str | None:
         """根据 notebook 实际索引反查标签页键名（不依赖注册表顺序）"""
@@ -420,6 +414,17 @@ class SettingsDialog:
             return
         self._do_lazy_swap(key, spec.creator)
 
+    def _discard_tab_widget(self, widget: tk.Widget) -> None:
+        """从 Notebook 移除并销毁一个可能处于半成品状态的标签页。"""
+        try:
+            self.notebook.forget(widget)
+        except Exception as e:
+            log(f"Failed to forget half-built settings tab '{widget}': {e}")
+        try:
+            widget.destroy()
+        except Exception as e:
+            log(f"Failed to destroy half-built settings tab '{widget}': {e}")
+
     def _do_lazy_swap(self, key: str, creator) -> None:
         """通用懒加载替换：执行 creator → 移动新框架到位 → 移除占位符"""
         placeholder = self._tab_map.get(key)
@@ -430,6 +435,7 @@ class SettingsDialog:
         except Exception:
             return
 
+        tabs_before = set(self.notebook.tabs())
         # swap 期间屏蔽 <<NotebookTabChanged>> 重入，避免连锁懒加载
         self._suppress_tab_change = True
         swap_complete = False
@@ -462,18 +468,31 @@ class SettingsDialog:
         finally:
             self._suppress_tab_change = False
             if not swap_complete:
-                # swap 中途失败：尽量恢复占位符状态。
-                # 若 creator 已 add 半成品 real frame（非占位符），先把它从 notebook 移除并销毁，
-                # 避免残留孤儿死标签；占位符若仍存在则保留可重试。
+                # swap 中途失败：清理 creator 新增的所有 tab，不依赖其是否及时更新 _tab_map。
                 try:
-                    current = self._tab_map.get(key)
-                    if current is not None and current is not placeholder:
+                    cleaned_tab_ids = set()
+                    for tab_id in set(self.notebook.tabs()) - tabs_before:
                         try:
-                            self.notebook.forget(current)
-                            current.destroy()
+                            widget = self.notebook.nametowidget(tab_id)
                         except Exception:
-                            pass  # 半成品 frame 可能已不在 notebook 中
+                            continue
+                        self._discard_tab_widget(widget)
+                        cleaned_tab_ids.add(tab_id)
+
+                    # creator 可能只创建了 frame 并更新了映射，但尚未 add 到 Notebook。
+                    current = self._tab_map.get(key)
+                    if (
+                        current is not None
+                        and current is not placeholder
+                        and str(current) not in tabs_before
+                        and str(current) not in cleaned_tab_ids
+                    ):
+                        self._discard_tab_widget(current)
+
                     if placeholder.winfo_exists():
+                        if str(placeholder) not in self.notebook.tabs():
+                            current_tabs = self.notebook.tabs()
+                            self.notebook.insert(min(idx, len(current_tabs)), placeholder)
                         self._tab_map[key] = placeholder
                 except Exception as e:
                     log(f"Failed to restore placeholder after failed swap for '{key}': {e}")
@@ -1069,21 +1088,17 @@ class SettingsDialog:
                 return
 
             # 更新配置字典
-            new_config = self.current_config.copy()
+            # 深拷贝，确保收集失败时不会通过嵌套字典修改 current_config。
+            new_config = copy.deepcopy(self.current_config)
 
             # 按标签页注册表收集配置：仅收集已创建的标签页。
             # 未创建的懒加载页说明用户未修改，current_config 已含正确值（跳过即可）。
-            for spec in self._tab_specs.values():
-                if spec.collect is None or spec.key not in self._tab_created:
+            for key, spec in self._tab_specs.items():
+                if spec.collect is None or key not in self._tab_created:
                     continue
                 # collect 已是绑定到 self 的 bound method，无需再传 self。
-                # 兜底：仅捕获 AttributeError（页异常创建导致的 Tk var 缺失），
-                # 记录并跳过该页，未收集到的键沿用 current_config 原值。
-                # 其他异常（TypeError/KeyError 等）仍冒泡到外层使整次保存可见失败。
-                try:
-                    spec.collect(new_config)
-                except AttributeError as e:
-                    log(f"Skip collecting tab '{spec.key}': {e}")
+                # 页面已完成创建，收集异常必须进入外层失败处理，避免部分配置静默丢失。
+                spec.collect(new_config)
 
             # 无条件规范 paste_delay_s：即使 advanced 页未创建，也修复手改配置引入的坏值
             new_config["paste_delay_s"] = self._sanitize_paste_delay(new_config.get("paste_delay_s"))
