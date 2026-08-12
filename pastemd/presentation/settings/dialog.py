@@ -297,6 +297,9 @@ class SettingsDialog:
             for key, spec in self._tab_specs.items():
                 if spec.enabled():
                     self._create_immediate(key, spec)
+            # Aqua/Tk 的 Canvas 子页在切换时会将布局绘制排到 idle 队列。
+            # 在虚拟事件尾部刷新 idle 任务，避免内容区短暂空白。
+            self.notebook.bind("<<NotebookTabChanged>>", self._on_macos_tab_changed)
         else:
             # Windows 低配机器：懒加载，仅加占位符，点击标签时才创建
             for key, spec in self._tab_specs.items():
@@ -314,6 +317,13 @@ class SettingsDialog:
 
         # 避免首次打开时就选中首个输入框
         self.root.after_idle(self._clear_initial_selection)
+
+    def _on_macos_tab_changed(self, event=None) -> None:
+        """Flush pending Aqua/Tk layout work after switching an eager tab."""
+        try:
+            self.notebook.update_idletasks()
+        except Exception as e:
+            log(f"Failed to redraw settings tab: {e}")
 
     def _tab_label(self, key: str) -> str:
         """按注册表 label_key 解析标签文本（单一真相源）。"""
