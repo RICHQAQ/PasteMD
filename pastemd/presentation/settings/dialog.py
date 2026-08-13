@@ -132,13 +132,37 @@ class SettingsDialog:
             self.root = tk.Toplevel(app_state.root)
         else:
             self.root = tk.Tk()
-            
+
+        # 创建后先隐藏：定位/居中全程在后台完成，避免首帧落在默认位置（左上角）产生闪烁。
+        # 配对的 deiconify() 在 show() → restore_and_focus() 中执行，窗口首帧即落在最终位置。
+        self.root.withdraw()
+
+        # 适配高分屏和屏幕尺寸
+        scale = get_dpi_scale()
+
+        # 在 macOS 上根据屏幕大小自适应
+        if not is_windows():
+            # 获取屏幕尺寸
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+
+            # 窗口大小设置为屏幕的 50%，但不超过 700x600，不小于 500x450
+            width = max(500, min(700, int(screen_width * 0.5)))
+            height = max(450, min(600, int(screen_height * 0.5)))
+        else:
+            # Windows 保持原来的固定大小
+            width = int(600 * scale)
+            height = int(500 * scale)
+
+        # 一次性写入完整 geometry（尺寸 + 居中位置），须在下方 iconbitmap 之前
+        self._set_centered_geometry(width, height)
+
         self.root.title(t("settings.dialog.title"))
         # 默认不强制置顶，便于最小化
         self.root.attributes("-topmost", False)
         # 确保有最小化按钮
         self.root.resizable(True, True)
-        
+
         # Windows 特有属性
         if is_windows():
             self.root.attributes("-toolwindow", False)
@@ -149,32 +173,10 @@ class SettingsDialog:
                     self.root.iconbitmap(icon_path)
             except Exception as e:
                 log(f"Failed to set settings dialog icon: {e}")
-        
-        # 适配高分屏和屏幕尺寸
-        scale = get_dpi_scale()
-        
-        # 在 macOS 上根据屏幕大小自适应
-        if not is_windows():
-            # 获取屏幕尺寸
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
-            
-            # 窗口大小设置为屏幕的 50%，但不超过 700x600，不小于 500x450
-            width = max(500, min(700, int(screen_width * 0.5)))
-            height = max(450, min(600, int(screen_height * 0.5)))
-        else:
-            # Windows 保持原来的固定大小
-            width = int(600 * scale)
-            height = int(500 * scale)
-        
-        self.root.geometry(f"{width}x{height}")
-        
+
         # 设置关闭窗口时的处理
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-        
-        # 窗口居中
-        self._center_window()
-        
+
         # 延迟创建 UI 组件：窗口先显示再填充，避免低配机器上黑屏/卡顿
         self.root.after_idle(self._lazy_create_widgets)
 
@@ -231,15 +233,17 @@ class SettingsDialog:
         except Exception as e:
             log(f"Failed to restore settings dialog: {e}")
         
-    def _center_window(self):
-        """将窗口居中显示"""
-        self.root.update_idletasks()
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.root.winfo_screenheight() // 2) - (height // 2)
-        self.root.geometry(f'{width}x{height}+{x}+{y}')
-        
+    def _set_centered_geometry(self, width: int, height: int) -> None:
+        """一次性写入完整 geometry（尺寸 + 居中位置）。
+
+        必须在 iconbitmap() 之前调用：Windows Tk 中 withdrawn 窗口设置图标后，
+        后续的 geometry() 请求会丢失（实测行为）；先写 geometry 则不受影响。
+        位置由屏幕尺寸与目标尺寸直接计算，不依赖此时不可靠的 winfo_width()。
+        """
+        x = (self.root.winfo_screenwidth() - width) // 2
+        y = (self.root.winfo_screenheight() - height) // 2
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
+
     def _lazy_create_widgets(self):
         """延迟创建 UI 组件（窗口显示后再创建，避免初始化黑屏）"""
         try:
