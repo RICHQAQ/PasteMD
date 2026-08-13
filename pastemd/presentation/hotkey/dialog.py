@@ -80,9 +80,33 @@ class HotkeyDialog:
             self.root = tk.Toplevel(app_state.root)
         else:
             self.root = tk.Tk()
-            
+
+        # 创建后先隐藏：定位/居中全程在后台完成，避免首帧落在默认位置（左上角）产生闪烁。
+        # 配对的 deiconify() 在 show() 中执行，窗口首帧即落在最终位置。
+        self.root.withdraw()
+
+        # 适配高分屏和屏幕尺寸
+        scale = get_dpi_scale()
+
+        # 在 macOS 上根据屏幕大小自适应
+        if not is_windows():
+            # 获取屏幕尺寸
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+
+            # 窗口大小设置为屏幕的合适比例，但不超过 500x350，不小于 400x250
+            width = max(400, min(500, int(screen_width * 0.35)))
+            height = max(250, min(350, int(screen_height * 0.3)))
+        else:
+            # Windows 保持原来的固定大小
+            width = int(450 * scale)
+            height = int(300 * scale)
+
+        # 一次性写入完整 geometry（尺寸 + 居中位置），须在下方 iconbitmap 之前
+        self._set_centered_geometry(width, height)
+
         self.root.title(t("hotkey.dialog.title"))
-        
+
         # 设置图标（仅 Windows）
         if is_windows():
             try:
@@ -91,26 +115,7 @@ class HotkeyDialog:
                     self.root.iconbitmap(icon_path)
             except Exception as e:
                 log(f"Failed to set hotkey dialog icon: {e}")
-        
-        # 适配高分屏和屏幕尺寸
-        scale = get_dpi_scale()
-        
-        # 在 macOS 上根据屏幕大小自适应
-        if not is_windows():
-            # 获取屏幕尺寸
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
-            
-            # 窗口大小设置为屏幕的合适比例，但不超过 500x350，不小于 400x250
-            width = max(400, min(500, int(screen_width * 0.35)))
-            height = max(250, min(350, int(screen_height * 0.3)))
-        else:
-            # Windows 保持原来的固定大小
-            width = int(450 * scale)
-            height = int(300 * scale)
-        
-        self.root.geometry(f"{width}x{height}")
-        
+
         # macOS 上允许调整大小，Windows 保持不可调整
         if not is_windows():
             self.root.resizable(True, True)
@@ -118,13 +123,10 @@ class HotkeyDialog:
             self.root.minsize(400, 250)
         else:
             self.root.resizable(False, False)
-        
+
         # 设置关闭窗口时的处理
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-        
-        # 窗口居中
-        self._center_window()
-        
+
         # 创建UI组件
         self._create_widgets()
         
@@ -300,14 +302,16 @@ class HotkeyDialog:
         except Exception as e:
             log(f"Failed to restore hotkey dialog: {e}")
     
-    def _center_window(self):
-        """将窗口居中显示"""
-        self.root.update_idletasks()
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.root.winfo_screenheight() // 2) - (height // 2)
-        self.root.geometry(f'{width}x{height}+{x}+{y}')
+    def _set_centered_geometry(self, width: int, height: int) -> None:
+        """一次性写入完整 geometry（尺寸 + 居中位置）。
+
+        必须在 iconbitmap() 之前调用：Windows Tk 中 withdrawn 窗口设置图标后，
+        后续的 geometry() 请求会丢失（实测行为）；先写 geometry 则不受影响。
+        位置由屏幕尺寸与目标尺寸直接计算，不依赖此时不可靠的 winfo_width()。
+        """
+        x = (self.root.winfo_screenwidth() - width) // 2
+        y = (self.root.winfo_screenheight() - height) // 2
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
     
     def _create_widgets(self):
         """创建UI组件"""

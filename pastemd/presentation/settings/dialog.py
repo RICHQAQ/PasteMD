@@ -1,9 +1,13 @@
 """Settings configuration dialog."""
 
+from __future__ import annotations
+
 import copy
+import math
 import os
 import webbrowser
 import tkinter as tk
+from dataclasses import dataclass
 from tkinter import ttk, messagebox, filedialog
 from typing import Optional, Callable, Dict, Any
 
@@ -19,6 +23,21 @@ from .extensions_tab import ExtensionsTab
 
 if is_macos():
     from .permissions import MacOSPermissionsTab
+
+
+@dataclass(frozen=True)
+class LazyTabSpec:
+    """标签页注册表条目：一个标签页除 key 外的全部信息。
+
+    key 由注册表 dict 的键提供（见 _build_tab_specs），spec 实例本身不携带 key，
+    避免键值双份冗余。新增标签页只需在 _build_tab_specs 加一条。
+    """
+
+    label_key: str  # i18n key，如 "settings.tab.conversion"
+    creator: Callable[[], None]  # bound method（已绑定 self），懒加载 swap 与即时创建共用
+    collect: Optional[Callable[[dict], None]] = None  # bound method（已绑定 self），把本页配置写入 config；None=无配置可收集
+    lazy_on_windows: bool = True  # Windows 上是否懒加载
+    enabled: Callable[[], bool] = lambda: True  # 平台门槛，如 permissions 仅 macOS
 
 
 class SettingsDialog:
@@ -113,13 +132,37 @@ class SettingsDialog:
             self.root = tk.Toplevel(app_state.root)
         else:
             self.root = tk.Tk()
-            
+
+        # 创建后先隐藏：定位/居中全程在后台完成，避免首帧落在默认位置（左上角）产生闪烁。
+        # 配对的 deiconify() 在 show() → restore_and_focus() 中执行，窗口首帧即落在最终位置。
+        self.root.withdraw()
+
+        # 适配高分屏和屏幕尺寸
+        scale = get_dpi_scale()
+
+        # 在 macOS 上根据屏幕大小自适应
+        if not is_windows():
+            # 获取屏幕尺寸
+            screen_width = self.root.winfo_screenwidth()
+            screen_height = self.root.winfo_screenheight()
+
+            # 窗口大小设置为屏幕的 50%，但不超过 700x600，不小于 500x450
+            width = max(500, min(700, int(screen_width * 0.5)))
+            height = max(450, min(600, int(screen_height * 0.5)))
+        else:
+            # Windows 保持原来的固定大小
+            width = int(600 * scale)
+            height = int(500 * scale)
+
+        # 一次性写入完整 geometry（尺寸 + 居中位置），须在下方 iconbitmap 之前
+        self._set_centered_geometry(width, height)
+
         self.root.title(t("settings.dialog.title"))
         # 默认不强制置顶，便于最小化
         self.root.attributes("-topmost", False)
         # 确保有最小化按钮
         self.root.resizable(True, True)
-        
+
         # Windows 特有属性
         if is_windows():
             self.root.attributes("-toolwindow", False)
@@ -130,32 +173,10 @@ class SettingsDialog:
                     self.root.iconbitmap(icon_path)
             except Exception as e:
                 log(f"Failed to set settings dialog icon: {e}")
-        
-        # 适配高分屏和屏幕尺寸
-        scale = get_dpi_scale()
-        
-        # 在 macOS 上根据屏幕大小自适应
-        if not is_windows():
-            # 获取屏幕尺寸
-            screen_width = self.root.winfo_screenwidth()
-            screen_height = self.root.winfo_screenheight()
-            
-            # 窗口大小设置为屏幕的 50%，但不超过 700x600，不小于 500x450
-            width = max(500, min(700, int(screen_width * 0.5)))
-            height = max(450, min(600, int(screen_height * 0.5)))
-        else:
-            # Windows 保持原来的固定大小
-            width = int(600 * scale)
-            height = int(500 * scale)
-        
-        self.root.geometry(f"{width}x{height}")
-        
+
         # 设置关闭窗口时的处理
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
-        
-        # 窗口居中
-        self._center_window()
-        
+
         # 延迟创建 UI 组件：窗口先显示再填充，避免低配机器上黑屏/卡顿
         self.root.after_idle(self._lazy_create_widgets)
 
@@ -212,23 +233,26 @@ class SettingsDialog:
         except Exception as e:
             log(f"Failed to restore settings dialog: {e}")
         
-    def _center_window(self):
-        """将窗口居中显示"""
-        self.root.update_idletasks()
-        width = self.root.winfo_width()
-        height = self.root.winfo_height()
-        x = (self.root.winfo_screenwidth() // 2) - (width // 2)
-        y = (self.root.winfo_screenheight() // 2) - (height // 2)
-        self.root.geometry(f'{width}x{height}+{x}+{y}')
-        
+    def _set_centered_geometry(self, width: int, height: int) -> None:
+        """一次性写入完整 geometry（尺寸 + 居中位置）。
+
+        必须在 iconbitmap() 之前调用：Windows Tk 中 withdrawn 窗口设置图标后，
+        后续的 geometry() 请求会丢失（实测行为）；先写 geometry 则不受影响。
+        位置由屏幕尺寸与目标尺寸直接计算，不依赖此时不可靠的 winfo_width()。
+        """
+        x = (self.root.winfo_screenwidth() - width) // 2
+        y = (self.root.winfo_screenheight() - height) // 2
+        self.root.geometry(f"{width}x{height}+{x}+{y}")
+
     def _lazy_create_widgets(self):
         """延迟创建 UI 组件（窗口显示后再创建，避免初始化黑屏）"""
         try:
             if not self.is_alive():
                 return
             self._create_widgets()
-            if self._initial_tab and self._initial_tab != "general":
-                # 标签页可能已由即时创建路径创建（macOS），也可能还未创建（Windows 懒加载）
+            if self._initial_tab:
+                # 标签页可能已由即时创建路径创建（macOS / 非懒加载页），也可能还未创建（Windows 懒加载）。
+                # 已创建则无需懒加载；未创建且是懒加载页则触发 swap。
                 if self._initial_tab not in self._tab_created:
                     self._lazy_create_tab_at(self._initial_tab)
                 self.select_tab(self._initial_tab)
@@ -265,50 +289,32 @@ class SettingsDialog:
         self._tab_created = set()
         self._extensions_tab = None
         self._permissions_tab = None
+        # swap 期间临时屏蔽 <<NotebookTabChanged>> 重入（防 swap 内部 forget 触发的同步事件）。
+        # 真正的连锁防护是 swap 尾部显式 re-select 选中态 + _tab_created 记录已创建页。
+        self._suppress_tab_change = False
 
-        # General 标签页 - 始终即时创建（默认首个可见）
-        self._create_general_tab()
-        self._tab_created.add("general")
+        # 标签页注册表（顺序即展示顺序）
+        self._tab_specs = self._build_tab_specs()
 
         if is_macos():
             # macOS 性能足够，全部标签页即时创建，避免懒加载的标签切换延迟
-            self._create_conversion_tab()
-            self._tab_created.add("conversion")
-            self._create_advanced_tab()
-            self._tab_created.add("advanced")
-            self._create_experimental_tab()
-            self._tab_created.add("experimental")
-
-            try:
-                self._extensions_tab = ExtensionsTab(self.notebook, self.current_config)
-                self._tab_map["extensions"] = self._extensions_tab.frame
-                self._tab_created.add("extensions")
-            except Exception as e:
-                log(f"Failed to create extensions tab: {e}")
-
-            try:
-                self._permissions_tab = MacOSPermissionsTab(self.notebook, self.root)
-                self._tab_map["permissions"] = self._permissions_tab.frame
-                self._tab_created.add("permissions")
-            except Exception as e:
-                log(f"Failed to create permissions tab: {e}")
+            for key, spec in self._tab_specs.items():
+                if spec.enabled():
+                    self._create_immediate(key, spec)
+            # Aqua/Tk 的 Canvas 子页在切换时会将布局绘制排到 idle 队列。
+            # 在虚拟事件尾部刷新 idle 任务，避免内容区短暂空白。
+            self.notebook.bind("<<NotebookTabChanged>>", self._on_macos_tab_changed)
         else:
             # Windows 低配机器：懒加载，仅加占位符，点击标签时才创建
-            self._lazy_tab_keys = ["conversion", "advanced", "experimental"]
-            self._lazy_tab_labels = {
-                "conversion": lambda: t("settings.tab.conversion"),
-                "advanced":   lambda: t("settings.tab.advanced"),
-                "experimental": lambda: t("settings.tab.experimental"),
-            }
-            for key in self._lazy_tab_keys:
-                placeholder = ttk.Frame(self.notebook)
-                self.notebook.add(placeholder, text=self._lazy_tab_labels[key]())
-                self._tab_map[key] = placeholder
-
-            # Extensions 标签页占位
-            self._extensions_placeholder = ttk.Frame(self.notebook)
-            self.notebook.add(self._extensions_placeholder, text=t("settings.tab.extensions"))
-            self._tab_map["extensions"] = self._extensions_placeholder
+            for key, spec in self._tab_specs.items():
+                if not spec.enabled():
+                    continue
+                if spec.lazy_on_windows:
+                    placeholder = ttk.Frame(self.notebook)
+                    self.notebook.add(placeholder, text=t(spec.label_key))
+                    self._tab_map[key] = placeholder
+                else:
+                    self._create_immediate(key, spec)
 
             # 监听标签页切换，触发懒加载
             self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
@@ -316,16 +322,94 @@ class SettingsDialog:
         # 避免首次打开时就选中首个输入框
         self.root.after_idle(self._clear_initial_selection)
 
+    def _on_macos_tab_changed(self, event=None) -> None:
+        """Flush pending Aqua/Tk layout work after switching an eager tab."""
+        try:
+            self.notebook.update_idletasks()
+        except Exception as e:
+            log(f"Failed to redraw settings tab: {e}")
+
+    def _tab_label(self, key: str) -> str:
+        """按注册表 label_key 解析标签文本（单一真相源）。"""
+        spec = self._tab_specs.get(key)
+        return t(spec.label_key) if spec else key
+
+    def _build_tab_specs(self) -> Dict[str, LazyTabSpec]:
+        """构建标签页注册表：新增标签页只需在此加一条。"""
+        return {
+            "general": LazyTabSpec(
+                label_key="settings.tab.general",
+                creator=self._create_general_tab,
+                collect=self._collect_general,
+                lazy_on_windows=False,
+            ),
+            "conversion": LazyTabSpec(
+                label_key="settings.tab.conversion",
+                creator=self._create_conversion_tab,
+                collect=self._collect_conversion,
+            ),
+            "advanced": LazyTabSpec(
+                label_key="settings.tab.advanced",
+                creator=self._create_advanced_tab,
+                collect=self._collect_advanced,
+            ),
+            "experimental": LazyTabSpec(
+                label_key="settings.tab.experimental",
+                creator=self._create_experimental_tab,
+                collect=self._collect_experimental,
+            ),
+            "extensions": LazyTabSpec(
+                label_key="settings.tab.extensions",
+                creator=self._create_extensions_tab,
+                collect=self._collect_extensions,
+            ),
+            "permissions": LazyTabSpec(
+                label_key="settings.tab.permissions",
+                creator=self._create_permissions_tab,
+                enabled=lambda: is_macos(),
+            ),
+        }
+
+    def _create_extensions_tab(self) -> None:
+        """创建扩展工作流标签页（creator，懒加载与即时创建共用）。"""
+        try:
+            self._extensions_tab = ExtensionsTab(self.notebook, self.current_config)
+            self._tab_map["extensions"] = self._extensions_tab.frame
+        except Exception as e:
+            log(f"Failed to create extensions tab: {e}")
+            self._extensions_tab = None
+            raise
+
+    def _create_permissions_tab(self) -> None:
+        """创建 macOS 权限标签页（creator，懒加载与即时创建共用）。"""
+        self._permissions_tab = MacOSPermissionsTab(self.notebook, self.root)
+        self._tab_map["permissions"] = self._permissions_tab.frame
+
+    def _create_immediate(self, key: str, spec: LazyTabSpec) -> None:
+        """即时创建标签页并标记已创建。"""
+        try:
+            # creator 已是绑定到 self 的 bound method，无需再传 self
+            spec.creator()
+            self._tab_created.add(key)
+        except Exception as e:
+            log(f"Failed to create tab '{key}': {e}")
+
     def _get_tab_key_by_index(self, idx: int) -> str | None:
-        """根据 notebook 索引获取标签页键名（仅用于 Windows 懒加载路径）"""
-        tab_order = ["general", *self._lazy_tab_keys, "extensions"]
-        if 0 <= idx < len(tab_order):
-            return tab_order[idx]
+        """根据 notebook 实际索引反查标签页键名（不依赖注册表顺序）"""
+        tabs = self.notebook.tabs()
+        if not (0 <= idx < len(tabs)):
+            return None
+        path = tabs[idx]
+        for key, widget in self._tab_map.items():
+            if str(widget) == path:
+                return key
         return None
 
     def _on_tab_changed(self, event=None) -> None:
         """标签页切换时触发懒加载"""
         try:
+            if self._suppress_tab_change:
+                return
             selected = self.notebook.select()
             idx = self.notebook.index(selected)
             key = self._get_tab_key_by_index(idx)
@@ -339,14 +423,21 @@ class SettingsDialog:
         """创建指定标签页的真实内容，替换占位框架"""
         if key in self._tab_created:
             return
-        if key == "conversion":
-            self._do_lazy_swap(key, self._create_conversion_tab)
-        elif key == "advanced":
-            self._do_lazy_swap(key, self._create_advanced_tab)
-        elif key == "experimental":
-            self._do_lazy_swap(key, self._create_experimental_tab)
-        elif key == "extensions":
-            self._do_lazy_swap_extensions()
+        spec = self._tab_specs.get(key)
+        if spec is None or not spec.lazy_on_windows:
+            return
+        self._do_lazy_swap(key, spec.creator)
+
+    def _discard_tab_widget(self, widget: tk.Widget) -> None:
+        """从 Notebook 移除并销毁一个可能处于半成品状态的标签页。"""
+        try:
+            self.notebook.forget(widget)
+        except Exception as e:
+            log(f"Failed to forget half-built settings tab '{widget}': {e}")
+        try:
+            widget.destroy()
+        except Exception as e:
+            log(f"Failed to destroy half-built settings tab '{widget}': {e}")
 
     def _do_lazy_swap(self, key: str, creator) -> None:
         """通用懒加载替换：执行 creator → 移动新框架到位 → 移除占位符"""
@@ -358,54 +449,173 @@ class SettingsDialog:
         except Exception:
             return
 
-        # 先标记已创建，防止 forget 触发的 <<NotebookTabChanged>> 事件重入
-        self._tab_created.add(key)
-
-        # 调用真实创建方法（会在 notebook 末尾添加新框架）
-        creator()
-
-        # 刚创建的框架在末尾，_tab_map[key] 已被更新
-        real_frame = self._tab_map.get(key)
-        if real_frame is None or real_frame is placeholder:
-            return
-
-        # 移动到占位符原本的位置（占位符被推到 idx+1）
-        self.notebook.insert(idx, real_frame)
-        self.notebook.forget(placeholder)
-        placeholder.destroy()
-
-        log(f"Lazy tab created: {key}")
-
-    def _do_lazy_swap_extensions(self) -> None:
-        """懒加载创建 Extensions 标签页"""
-        placeholder = getattr(self, "_extensions_placeholder", None)
-        if placeholder is None:
-            return
+        tabs_before = set(self.notebook.tabs())
+        # swap 期间屏蔽 <<NotebookTabChanged>> 重入，避免连锁懒加载
+        self._suppress_tab_change = True
+        swap_complete = False
         try:
-            idx = self.notebook.index(placeholder)
-        except Exception:
-            return
+            # 调用真实创建方法（会在 notebook 末尾添加新框架）
+            creator()
 
-        # 先标记已创建，防止 forget 触发的 <<NotebookTabChanged>> 事件重入
-        self._tab_created.add("extensions")
+            # 刚创建的框架在末尾，_tab_map[key] 已被更新
+            real_frame = self._tab_map.get(key)
+            if real_frame is None or real_frame is placeholder:
+                return
 
-        try:
-            self._extensions_tab = ExtensionsTab(self.notebook, self.current_config)
-            real_frame = self._extensions_tab.frame
-            self._tab_map["extensions"] = real_frame
+            # 移动到占位符原本的位置（占位符被推到 idx+1）
             self.notebook.insert(idx, real_frame)
             self.notebook.forget(placeholder)
             placeholder.destroy()
-            log("Lazy tab created: extensions")
-        except Exception as e:
-            log(f"Failed to create extensions tab: {e}")
-            self._extensions_tab = None
+
+            # forget 选中态的占位符会把选中带到相邻标签（默认行为），这里显式拉回真实框架。
+            # 注意：nb.select() 返回 tab_id 字符串，real_frame 是 Widget 对象，二者不可直接比较，
+            # 统一用 str() 比较。
+            try:
+                if str(self.notebook.select()) != str(real_frame):
+                    self.notebook.select(real_frame)
+            except Exception as e:
+                log(f"Failed to re-select tab after lazy swap: {e}")
+
+            # swap 完全成功后才标记已创建，异常时保持占位符可重试、且 _on_save 不会收集半成品页
+            self._tab_created.add(key)
+            swap_complete = True
+        finally:
+            self._suppress_tab_change = False
+            if not swap_complete:
+                # swap 中途失败：清理 creator 新增的所有 tab，不依赖其是否及时更新 _tab_map。
+                try:
+                    cleaned_tab_ids = set()
+                    for tab_id in set(self.notebook.tabs()) - tabs_before:
+                        try:
+                            widget = self.notebook.nametowidget(tab_id)
+                        except Exception:
+                            continue
+                        self._discard_tab_widget(widget)
+                        cleaned_tab_ids.add(tab_id)
+
+                    # creator 可能只创建了 frame 并更新了映射，但尚未 add 到 Notebook。
+                    current = self._tab_map.get(key)
+                    if (
+                        current is not None
+                        and current is not placeholder
+                        and str(current) not in tabs_before
+                        and str(current) not in cleaned_tab_ids
+                    ):
+                        self._discard_tab_widget(current)
+
+                    if placeholder.winfo_exists():
+                        if str(placeholder) not in self.notebook.tabs():
+                            current_tabs = self.notebook.tabs()
+                            self.notebook.insert(min(idx, len(current_tabs)), placeholder)
+                        self._tab_map[key] = placeholder
+                except Exception as e:
+                    log(f"Failed to restore placeholder after failed swap for '{key}': {e}")
+
+        if swap_complete:
+            log(f"Lazy tab created: {key}")
+
+    def _collect_general(self, config: dict) -> None:
+        """收集常规页配置。仅在该页已创建时被 _on_save 调用。"""
+        # 将显示名称映射回代码
+        selected_label = self.lang_var.get()
+        config["language"] = self.lang_map.get(selected_label, "en-US")
+        config["save_dir"] = self.save_dir_var.get()
+        config["keep_file"] = self.keep_file_var.get()
+        config["notify"] = self.notify_var.get()
+        config["startup_notify"] = self.startup_notify_var.get()
+        # Preserve the latest hotkey (may have been changed via HotkeyDialog while Settings is open).
+        latest_hotkey = app_state.config.get("hotkey") or getattr(app_state, "hotkey_str", None)
+        if latest_hotkey:
+            config["hotkey"] = str(latest_hotkey)
+
+        # 映射显示文本回配置值
+        reverse_action_map = {v: k for k, v in get_no_app_action_map().items()}
+        selected_action_text = self.no_app_action_var.get()
+        config["no_app_action"] = reverse_action_map.get(selected_action_text, "open")
+        if is_windows():
+            config["move_cursor_to_end"] = self.move_cursor_var.get()
+
+    def _collect_conversion(self, config: dict) -> None:
+        """收集转换页配置。仅在该页已创建时被 _on_save 调用。"""
+        config["pandoc_path"] = self.pandoc_path_var.get()
+        ref_docx = self.ref_docx_var.get()
+        config["reference_docx"] = ref_docx if ref_docx else None
+
+        if not isinstance(config.get("html_formatting"), dict):
+            config["html_formatting"] = {}
+        config["html_formatting"]["strikethrough_to_del"] = self.strikethrough_var.get()
+
+        selected_horizontal_rule_label = self.horizontal_rule_style_var.get()
+        config["horizontal_rule_style"] = self._horizontal_rule_style_label_to_key.get(
+            selected_horizontal_rule_label,
+            "default",
+        )
+
+        config["md_disable_first_para_indent"] = self.md_indent_var.get()
+        config["html_disable_first_para_indent"] = self.html_indent_var.get()
+        config["markdown_hard_line_breaks"] = self.markdown_hard_line_breaks_var.get()
+
+        # 保存 Pandoc Filters 列表（dict 格式，兼容旧版 str 格式）
+        config["pandoc_filters_by_conversion"] = {
+            key: list(self.filters_by_conversion.get(key, []))
+            for key in self._conversion_filter_keys
+        }
+        config["pandoc_filters"] = list(self.global_filters)
+
+    @staticmethod
+    def _sanitize_paste_delay(value: Any) -> float:
+        """将 paste_delay_s 规范为合法的非负浮点数（含默认值兜底）。
+
+        无论 advanced 页是否已创建都要调用，保证坏值（如手改配置为 "abc"、NaN、
+        无穷大）在保存时被修复，避免下游 time.sleep(paste_delay_s) 抛异常。
+        """
+        try:
+            delay = float(value)
+        except (TypeError, ValueError):
+            return float(DEFAULT_CONFIG.get("paste_delay_s", 0.3))
+        # 负数归零（负延迟无意义）；NaN/±Inf 不抛异常但会让 time.sleep 崩溃，回落默认值
+        if math.isnan(delay) or math.isinf(delay):
+            return float(DEFAULT_CONFIG.get("paste_delay_s", 0.3))
+        if delay < 0:
+            return 0.0
+        return delay
+
+    def _collect_advanced(self, config: dict) -> None:
+        """收集高级页配置。仅在该页已创建时被 _on_save 调用。"""
+        config["enable_excel"] = self.excel_enable_var.get()
+        config["excel_keep_format"] = self.excel_format_var.get()
+        config["paste_delay_s"] = self._sanitize_paste_delay(self.paste_delay_var.get())
+
+    def _collect_experimental(self, config: dict) -> None:
+        """收集实验性页配置。仅在该页已创建时被 _on_save 调用。"""
+        config["Keep_original_formula"] = self.keep_formula_var.get()
+        config["enable_latex_replacements"] = self.enable_latex_replacements_var.get()
+        config["fix_single_dollar_block"] = self.fix_single_dollar_block_var.get()
+        config["docx_auto_table_layout"] = self.docx_auto_table_layout_var.get()
+
+        # pandoc_request_headers（实验性功能）
+        if getattr(self, "pandoc_request_headers_enable_var", None) is not None:
+            if self.pandoc_request_headers_enable_var.get():
+                raw = self.pandoc_request_headers_text.get("1.0", tk.END).splitlines()
+                headers = [line.strip() for line in raw if isinstance(line, str) and line.strip()]
+                config["pandoc_request_headers"] = headers
+            else:
+                # 由于 DEFAULT_CONFIG 中默认包含该字段，不建议删除 key；用空列表表示“禁用任何 header”。
+                config["pandoc_request_headers"] = []
+
+    def _collect_extensions(self, config: dict) -> None:
+        """收集扩展工作流配置。仅在该页已创建时被 _on_save 调用。"""
+        if not self._extensions_tab:
+            return
+        ext_config = config.get("extensible_workflows", {})
+        ext_config.update(self._extensions_tab.get_config())
+        config["extensible_workflows"] = ext_config
 
     def _create_general_tab(self):
         """创建常规设置选项卡"""
         frame = ttk.Frame(self.notebook, padding=10)
         frame.columnconfigure(1, weight=1)
-        self.notebook.add(frame, text=t("settings.tab.general"))
+        self.notebook.add(frame, text=self._tab_label("general"))
         self._tab_map["general"] = frame
         
         # 保存目录
@@ -512,7 +722,7 @@ class SettingsDialog:
         frame = ttk.Frame(self.notebook)
         frame.rowconfigure(0, weight=1)
         frame.columnconfigure(0, weight=1)
-        self.notebook.add(frame, text=t("settings.tab.conversion"))
+        self.notebook.add(frame, text=self._tab_label("conversion"))
         self._tab_map["conversion"] = frame
 
         canvas = tk.Canvas(frame, highlightthickness=0)
@@ -630,7 +840,7 @@ class SettingsDialog:
     def _create_advanced_tab(self):
         """创建高级设置选项卡"""
         frame = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(frame, text=t("settings.tab.advanced"))
+        self.notebook.add(frame, text=self._tab_label("advanced"))
         self._tab_map["advanced"] = frame
         frame.columnconfigure(1, weight=1)
         
@@ -657,7 +867,7 @@ class SettingsDialog:
     def _create_experimental_tab(self):
         """创建实验性功能选项卡"""
         frame = ttk.Frame(self.notebook, padding=10)
-        self.notebook.add(frame, text=t("settings.tab.experimental"))
+        self.notebook.add(frame, text=self._tab_label("experimental"))
         self._tab_map["experimental"] = frame
         frame.columnconfigure(0, weight=1)
         
@@ -892,149 +1102,35 @@ class SettingsDialog:
                 return
 
             # 更新配置字典
-            new_config = self.current_config.copy()
-            
-            # 将显示名称映射回代码
-            selected_label = self.lang_var.get()
-            new_config["language"] = self.lang_map.get(selected_label, "en-US")
-            new_config["save_dir"] = self.save_dir_var.get()
-            new_config["keep_file"] = self.keep_file_var.get()
-            new_config["notify"] = self.notify_var.get()
-            new_config["startup_notify"] = self.startup_notify_var.get()
-            # Preserve the latest hotkey (may have been changed via HotkeyDialog while Settings is open).
-            latest_hotkey = app_state.config.get("hotkey") or getattr(app_state, "hotkey_str", None)
-            if latest_hotkey:
-                new_config["hotkey"] = str(latest_hotkey)
+            # 深拷贝，确保收集失败时不会通过嵌套字典修改 current_config。
+            new_config = copy.deepcopy(self.current_config)
 
-            # 获取 action_map 用于映射
-            action_map = get_no_app_action_map()
+            # 按标签页注册表收集配置：仅收集已创建的标签页。
+            # 未创建的懒加载页说明用户未修改，current_config 已含正确值（跳过即可）。
+            for key, spec in self._tab_specs.items():
+                if spec.collect is None or key not in self._tab_created:
+                    continue
+                # collect 已是绑定到 self 的 bound method，无需再传 self。
+                # 页面已完成创建，收集异常必须进入外层失败处理，避免部分配置静默丢失。
+                spec.collect(new_config)
 
-            # 映射显示文本回配置值
-            reverse_action_map = {v: k for k, v in action_map.items()}
-            selected_action_text = self.no_app_action_var.get()
-            new_config["no_app_action"] = reverse_action_map.get(selected_action_text, "open")
-            if is_windows():
-                new_config["move_cursor_to_end"] = self.move_cursor_var.get()
-            
-            new_config["pandoc_path"] = self._get_var_value(
-                "pandoc_path_var",
-                self.current_config.get("pandoc_path", "pandoc"),
-            )
-            ref_docx = self._get_var_value(
-                "ref_docx_var",
-                self.current_config.get("reference_docx") or "",
-            )
-            new_config["reference_docx"] = ref_docx if ref_docx else None
-            
-            if not isinstance(new_config.get("html_formatting"), dict):
-                new_config["html_formatting"] = {}
-            current_html_formatting = self.current_config.get("html_formatting", {})
-            if not isinstance(current_html_formatting, dict):
-                current_html_formatting = {}
-            new_config["html_formatting"]["strikethrough_to_del"] = self._get_var_value(
-                "strikethrough_var",
-                current_html_formatting.get("strikethrough_to_del", True),
-            )
-            horizontal_rule_var = getattr(self, "horizontal_rule_style_var", None)
-            if horizontal_rule_var is None:
-                new_config["horizontal_rule_style"] = self.current_config.get(
-                    "horizontal_rule_style",
-                    "default",
-                )
-            else:
-                selected_horizontal_rule_label = horizontal_rule_var.get()
-                new_config["horizontal_rule_style"] = self._horizontal_rule_style_label_to_key.get(
-                    selected_horizontal_rule_label,
-                    "default",
-                )
-            
-            new_config["md_disable_first_para_indent"] = self._get_var_value(
-                "md_indent_var",
-                self.current_config.get("md_disable_first_para_indent", True),
-            )
-            new_config["html_disable_first_para_indent"] = self._get_var_value(
-                "html_indent_var",
-                self.current_config.get("html_disable_first_para_indent", True),
-            )
-            new_config["markdown_hard_line_breaks"] = self._get_var_value(
-                "markdown_hard_line_breaks_var",
-                self.current_config.get("markdown_hard_line_breaks", False),
-            )
-            new_config["Keep_original_formula"] = self._get_var_value(
-                "keep_formula_var",
-                self.current_config.get("Keep_original_formula", False),
-            )
-            new_config["enable_latex_replacements"] = self._get_var_value(
-                "enable_latex_replacements_var",
-                self.current_config.get("enable_latex_replacements", True),
-            )
-            new_config["fix_single_dollar_block"] = self._get_var_value(
-                "fix_single_dollar_block_var",
-                self.current_config.get("fix_single_dollar_block", True),
-            )
-            new_config["docx_auto_table_layout"] = self._get_var_value(
-                "docx_auto_table_layout_var",
-                self.current_config.get("docx_auto_table_layout", False),
-            )
+            # 无条件规范 paste_delay_s：即使 advanced 页未创建，也修复手改配置引入的坏值
+            new_config["paste_delay_s"] = self._sanitize_paste_delay(new_config.get("paste_delay_s"))
 
-            # pandoc_request_headers（实验性功能）
-            if getattr(self, "pandoc_request_headers_enable_var", None) is not None:
-                if self.pandoc_request_headers_enable_var.get():
-                    raw = self.pandoc_request_headers_text.get("1.0", tk.END).splitlines()
-                    headers = [line.strip() for line in raw if isinstance(line, str) and line.strip()]
-                    new_config["pandoc_request_headers"] = headers
-                else:
-                    # 由于 DEFAULT_CONFIG 中默认包含该字段，不建议删除 key；用空列表表示“禁用任何 header”。
-                    new_config["pandoc_request_headers"] = []
-            
-            new_config["enable_excel"] = self._get_var_value(
-                "excel_enable_var",
-                self.current_config.get("enable_excel", True),
-            )
-            new_config["excel_keep_format"] = self._get_var_value(
-                "excel_format_var",
-                self.current_config.get("excel_keep_format", True),
-            )
-            try:
-                paste_delay_value = float(
-                    self._get_var_value(
-                        "paste_delay_var",
-                        self.current_config.get("paste_delay_s", 0.3),
-                    )
-                )
-                if paste_delay_value < 0:
-                    paste_delay_value = 0.0
-            except (TypeError, ValueError):
-                paste_delay_value = DEFAULT_CONFIG.get("paste_delay_s", 0.3)
-            new_config["paste_delay_s"] = paste_delay_value
-            
-            # 保存 Pandoc Filters 列表（dict 格式，兼容旧版 str 格式）
-            new_config["pandoc_filters_by_conversion"] = {
-                key: list(self.filters_by_conversion.get(key, []))
-                for key in self._conversion_filter_keys
-            }
-            new_config["pandoc_filters"] = list(self.global_filters)
-            
-            # 保存扩展选项卡配置
-            if self._extensions_tab:
-                ext_config = new_config.get("extensible_workflows", {})
-                ext_config.update(self._extensions_tab.get_config())
-                new_config["extensible_workflows"] = ext_config
-            
             # 保存到文件
             self.config_loader.save(new_config)
-            
+
             # 更新全局状态
             app_state.config = new_config
-            
+
             # 显示成功消息（置顶）
             self._show_topmost_message(t("settings.title.success"), t("settings.success.saved"), "info")
-            
+
             if self.on_save_callback:
                 self.on_save_callback()
             self._call_on_close_callback()
             self._safe_destroy()
-            
+
         except Exception as e:
             log(f"Failed to save settings: {e}")
             # 显示错误消息（置顶）

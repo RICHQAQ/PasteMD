@@ -27,7 +27,8 @@ class ConfigLoader:
                 with open(self.config_path, "r", encoding="utf-8") as f:
                     user_config_raw = json.load(f)
             except Exception as e:
-                log(f"Load config error: {e}, utilizing default config.")
+                log(f"Load config error: {e}, backing up and utilizing default config.")
+                self._backup_corrupted_config()
                 config_needs_save = True
                 # 这里不抛错，而是降级使用默认配置，防止程序直接崩溃
         else:
@@ -91,6 +92,17 @@ class ConfigLoader:
                 has_changes = True  # 发现了一个新配置项，需要保存！
 
         return has_changes
+
+    def _backup_corrupted_config(self) -> None:
+        """备份损坏的配置文件为 .bak"""
+        backup_path = self.config_path + ".bak"
+        try:
+            if os.path.exists(backup_path):
+                os.remove(backup_path)
+            os.rename(self.config_path, backup_path)
+            log(f"Corrupted config backed up to: {backup_path}")
+        except Exception as e:
+            log(f"Failed to backup corrupted config: {e}")
 
     def check_workflow_conflicts(self, config: ConfigDict) -> dict:
         """检查可扩展工作流中的跨工作流应用冲突

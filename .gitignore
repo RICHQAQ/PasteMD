@@ -255,6 +255,7 @@ nuitka-crash-report.xml
 # AI agent files
 .claude/
 .kilocode/
+.omc/
 AGENTS.md
 CLAUDE.md
 
