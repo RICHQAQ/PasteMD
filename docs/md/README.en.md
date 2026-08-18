@@ -452,7 +452,7 @@ Thanks for every star — please share PasteMD with more users. I am aiming for 
      alt="like you"
      width="150">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=RICHQAQ/PasteMD&type=date&legend=top-left)](https://www.star-history.com/#RICHQAQ/PasteMD&type=date&legend=top-left)
+[![Star History Chart](https://star-history.dera.page/svg?repos=RICHQAQ/PasteMD&type=date&legend=top-left)](https://star-history.dera.page/#RICHQAQ/PasteMD&type=date&legend=top-left)
 
 ## ☕ Support & Donation
 

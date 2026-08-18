@@ -454,7 +454,7 @@ Star してくれたみなさん、いつもありがとうございます！も
      alt="likeyou"
      width="150">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=RICHQAQ/PasteMD&type=date&legend=top-left)](https://www.star-history.com/#RICHQAQ/PasteMD&type=date&legend=top-left)
+[![Star History Chart](https://star-history.dera.page/svg?repos=RICHQAQ/PasteMD&type=date&legend=top-left)](https://star-history.dera.page/#RICHQAQ/PasteMD&type=date&legend=top-left)
 
 ## 🍵 サポート/投げ銭
 

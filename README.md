@@ -455,7 +455,7 @@ pyinstaller --clean -F -w -n PasteMD
      alt="喜欢你"
      width="150">
 
-[![Star History Chart](https://api.star-history.com/svg?repos=RICHQAQ/PasteMD&type=date&legend=top-left)](https://www.star-history.com/#RICHQAQ/PasteMD&type=date&legend=top-left)
+[![Star History Chart](https://star-history.dera.page/svg?repos=RICHQAQ/PasteMD&type=date&legend=top-left)](https://star-history.dera.page/#RICHQAQ/PasteMD&type=date&legend=top-left)
 
 ## 🍵支持与打赏
 
