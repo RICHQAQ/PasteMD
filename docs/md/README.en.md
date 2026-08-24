@@ -30,6 +30,7 @@
 
 <p align="center">
 <a href="https://hellogithub.com/repository/RICHQAQ/PasteMD" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=7dfb1883330d441f9264d8e8945c75e2&claim_uid=RvDOqI1Satiwzh4&theme=neutral" alt="Featured｜HelloGitHub" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+<a href="https://trendshift.io/repositories/15640?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-15640" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/15640/daily?language=Python" alt="RICHQAQ%2FPasteMD | Trendshift" width="250" height="55" /></a>
 </p>
 
 <!-- sponsor-ad:start -->
@@ -40,6 +41,11 @@
 <td valign="middle">
   <a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=pasteMD">Atlas Cloud</a> is a full-modal AI inference platform that gives developers a single AI API to access video generation, image generation, and LLM APIs. Instead of managing multiple vendor integrations, you connect once and get unified access to 300+ curated models across all modalities.<br>
   Check out Atlas Cloud's new coding plan promotion for more budget-friendly API access: <a href="https://www.atlascloud.ai/console/coding-plan">https://www.atlascloud.ai/console/coding-plan</a></td>
+</tr>
+<tr>
+<td width="200" align="center" valign="middle"><a href="https://go.apimart.ai/gh-pastemd"><img src="../../docs/img/APIMart.png" alt="APIMart" width="180"></a></td>
+<td valign="middle">
+  Thanks to APIMart for sponsoring this project! APIMart is a low-cost API platform for AI image &amp; video generation — GPT-Image-2 from $0.006/image, 160+ images per dollar. One async API covers both image and video: submit a task, get an ID, fetch results via polling or callback. Batch tens of thousands of images without timeouts, switch models without changing code. Pay-as-you-go with no monthly fee — <a href="https://go.apimart.ai/gh-pastemd">sign up here</a> to get started.</td>
 </tr>
 </table>
 <!-- sponsor-ad:end -->

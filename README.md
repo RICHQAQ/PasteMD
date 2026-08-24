@@ -30,6 +30,7 @@
 
 <p align="center">
 <a href="https://hellogithub.com/repository/RICHQAQ/PasteMD" target="_blank"><img src="https://abroad.hellogithub.com/v1/widgets/recommend.svg?rid=7dfb1883330d441f9264d8e8945c75e2&claim_uid=RvDOqI1Satiwzh4&theme=neutral" alt="Featured｜HelloGitHub" style="width: 250px; height: 54px;" width="250" height="54" /></a>
+<a href="https://trendshift.io/repositories/15640?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-15640" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/15640/daily?language=Python" alt="RICHQAQ%2FPasteMD | Trendshift" width="250" height="55" /></a>
 </p>
 
 
@@ -41,6 +42,11 @@
 <td valign="middle">
   <a href="https://www.atlascloud.ai/?utm_source=github&utm_medium=link&utm_campaign=pasteMD">Atlas Cloud</a> 是一个全模态 AI 推理平台，为开发者提供单一 AI API，用于访问视频生成、图像生成和 LLM API。无需管理多个供应商集成，接入一次即可统一访问覆盖所有模态的 300+ 精选模型。<br>
   查看 Atlas Cloud 新的 Coding Plan 推广，获得更具预算友好性的 API 访问：<a href="https://www.atlascloud.ai/console/coding-plan">https://www.atlascloud.ai/console/coding-plan</a></td>
+</tr>
+<tr>
+<td width="200" align="center" valign="middle"><a href="https://go.apimart.ai/gh-pastemd"><img src="docs/img/APIMart.png" alt="APIMart" width="180"></a></td>
+<td valign="middle">
+  感谢 APIMart 赞助了本项目！APIMart 是专注 AI 图片/视频生成的低价 API 平台，GPT-Image-2 低至 $0.006/张，1 美元可出图 160+ 张。图片、视频一套异步 API 通吃，提交任务拿 ID、回调取结果，跑批万张不超时、换模型不改代码。按量付费、无月费，通过此<a href="https://go.apimart.ai/gh-pastemd">注册链接</a>注册即可开用。</td>
 </tr>
 </table>
 <!-- sponsor-ad:end -->
