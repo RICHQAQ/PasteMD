@@ -58,8 +58,8 @@
 <td width="200" align="center" valign="middle"><a href="https://siulight.com/#home"><img src="docs/img/siulight-logo.png" alt="微光漫摄" width="180"></a></td>
 <td valign="middle">
   🌟感谢大家的支持！我们是一个来自南昌大学软件学院的学生技术兴趣社团，热爱开源，热爱二次元，热爱生活。❤️
-  <a href="https://siulight.com/#home">南昌大学微光漫摄</a>是一个以 ACGN 为坐标的二次元社团。我们因动画、漫画、游戏与影像相聚，在这里分享热爱、交流创作，也把喜欢的事变成作品。<br>
-  欢迎访问<a href="https://siulight.com/#home">微光漫摄官网</a>，认识更多同频的伙伴。</td>
+  <a href="https://siulight.com/">南昌大学微光漫摄</a>是一个以 ACGN 为坐标的二次元社团。我们因动画、漫画、游戏与影像相聚，在这里分享热爱、交流创作，也把喜欢的事变成作品。<br>
+  欢迎访问<a href="https://siulight.com/">微光漫摄官网</a>，认识更多同频的伙伴。</td>
 </tr>
 </table>
 
