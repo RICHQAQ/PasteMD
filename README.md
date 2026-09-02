@@ -51,6 +51,18 @@
 </table>
 <!-- sponsor-ad:end -->
 
+## 🌸 社团
+
+<table>
+<tr>
+<td width="200" align="center" valign="middle"><a href="https://siulight.com/#home"><img src="docs/img/siulight-logo.png" alt="微光漫摄" width="180"></a></td>
+<td valign="middle">
+  🌟感谢大家的支持！我们是一个来自南昌大学软件学院的学生技术兴趣社团，热爱开源，热爱二次元，热爱生活。❤️
+  <a href="https://siulight.com/#home">南昌大学微光漫摄</a>是一个以 ACGN 为坐标的二次元社团。我们因动画、漫画、游戏与影像相聚，在这里分享热爱、交流创作，也把喜欢的事变成作品。<br>
+  欢迎访问<a href="https://siulight.com/#home">微光漫摄官网</a>，认识更多同频的伙伴。</td>
+</tr>
+</table>
+
 > 在写论文或报告时，从 ChatGPT / DeepSeek 等 AI 网站中复制出来的公式在 Word 里总是乱码？Markdown 表格复制到 Excel 总是不行？**PasteMD 就是为了解决这个问题而生的，嘿嘿**
 > 
 > <img src="docs/gif/atri/igood.gif"
