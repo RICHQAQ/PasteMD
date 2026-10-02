@@ -51,21 +51,91 @@ def _convert_standard_latex_delimiters(text: str) -> str:
     return text
 
 
+_CJK_CHARS_RE = re.compile(r'[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef]')
+_TEX_COMMAND_RE = re.compile(r'\\[a-zA-Z]+')
+
+
 def _fix_inline_math_spaces(text: str) -> str:
     """
     修复行内公式中 $ 后面的空格和 $ 前面的空格
-    
-    Pandoc tex_math_dollars 要求 $ 后不能有空格，$ 前不能有空格
-    例如：$  L  $ -> $L$
-    """
-    def fix_inline_spaces(match):
-        content = match.group(1)
-        return f"${content.strip()}$"
 
-    # 匹配 $ + 空格 + 内容 + 空格 + $
-    # 排除 $$ 的情况
-    # 使用 [ \t]+ 仅匹配水平空白，避免误伤多行块级公式
-    return re.sub(r'(?<!\$)\$(?!\$)[ \t]+([^\n$]+?)[ \t]+(?<!\$)\$(?!\$)', fix_inline_spaces, text)
+    Pandoc tex_math_dollars 要求 $ 后不能有空格，$ 前不能有空格
+    例如：$  L  $ -> $L$、$ {x}$ -> ${x}$、$x $ -> $x$
+
+    按行内 $ 的出现顺序逐对配对（与 Pandoc 的行内公式解析一致），
+    避免正则方案把两个公式之间的普通文字（如 $a$ 和 $b$ 中的 " 和 "）
+    误配成一个"公式"。围栏代码块（``` / ~~~）内的内容不做处理。
+    """
+    if '$' not in text:
+        return text
+
+    out = []
+    in_code = False
+    fence = ""
+    for line in text.split('\n'):
+        stripped = line.strip()
+        if stripped.startswith('```') or stripped.startswith('~~~'):
+            if not in_code:
+                in_code, fence = True, stripped[:3]
+            elif stripped.startswith(fence):
+                in_code, fence = False, ""
+            out.append(line)
+            continue
+        out.append(line if in_code else _fix_inline_spaces_in_line(line))
+    return '\n'.join(out)
+
+
+def _fix_inline_spaces_in_line(line: str) -> str:
+    """对单行执行 $...$ 配对与内侧空格修复。"""
+    if '$' not in line:
+        return line
+
+    out = []
+    i = 0
+    n = len(line)
+    while i < n:
+        ch = line[i]
+        if ch != '$':
+            out.append(ch)
+            i += 1
+            continue
+
+        # 转义的美元符号 \$：普通字符
+        if i > 0 and line[i - 1] == '\\':
+            out.append(ch)
+            i += 1
+            continue
+
+        # $$：块级公式定界符或转义，原样输出
+        if i + 1 < n and line[i + 1] == '$':
+            out.append('$$')
+            i += 2
+            continue
+
+        # 找与之配对的闭合 $
+        close = line.find('$', i + 1)
+        if close == -1:
+            out.append(line[i:])
+            break
+
+        content = line[i + 1:close]
+        stripped = content.strip()
+        # 空内容不当作公式；含中日韩字符视为普通文本（如 "$ 5 和 $"），
+        # 但含 LaTeX 命令的除外（如 "$ \text{面积} = 5 $" 是真公式）
+        if not stripped or (
+            _CJK_CHARS_RE.search(stripped) and not _TEX_COMMAND_RE.search(stripped)
+        ):
+            out.append('$')
+            i += 1
+            continue
+
+        if stripped != content:
+            out.append(f'${stripped}$')
+        else:
+            out.append(line[i:close + 1])
+        i = close + 1
+
+    return ''.join(out)
 
 
 def _fix_single_dollar_blocks(text: str) -> str:
