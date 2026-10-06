@@ -156,6 +156,19 @@ def test_cjk_text_without_latex_command_not_converted():
         r'$$ C = \left( x \right) ^ { 1 / \mathnormal { p } } .\tag{8} $$',
         r'$$ R = \cfrac { 1 } { N } Y Y ^ { T } .\tag{10} $$',
         r'$$ e = \overline { { { \bf Y } } } .\tag{15} $$',
+        # {\cal X}/{\bf X} 位于外层命令参数内：改写必须保留外层分组括号，
+        # 否则 \tilde{\bf X} 变成 \tilde\mathbf{X}，texmath 解析失败、整条公式降级为文本
+        r'$$ s = \sqrt{\cal X} $$',
+        r'$$ t = \tilde{\bf X} - \tilde{\bf y} $$',
+        r'$$ u = { \tilde { \bf X } } _ { 3 } $$',
+        r'$$ b = \boldsymbol{\cal X} $$',
+        r'$$ l = \left\{\cal X\right\} $$',
+        # 声明 + 分组 / 命令参数形态
+        r'$$ c = \cal{X} $$',
+        r'$$ d = \bf{X} $$',
+        r'$$ a = \cal\alpha $$',
+        r'$$ g = {\bf\alpha} $$',
+        r'$$ h = {\bf { \cal X }} $$',
     ],
 )
 def test_legacy_latex_commands_convert_cleanly(tex):

@@ -24,22 +24,56 @@ local mappings = {
     pattern = "\\mathnormal",
     replacement = "\\mathit"
   },
-  -- {\cal X} → \mathcal{X}（%f 断言保证 \cal 后不是字母，避免误配 \calX 等命令名）
+  -- {\cal X} → {\mathcal{X}}（保留外层分组括号：{\bf X} 位于其他命令的参数内时，
+  -- 吃掉括号会把 \tilde{\bf X} 变成 \tilde\mathbf{X}，texmath 解析失败，
+  -- 整条公式按原始 TeX 文本降级渲染；%f 断言保证 \cal 后不是字母，避免误配 \calX 等）
   {
-    pattern = "{%s*\\cal%f[^%a]%s*(%S+)%s*}",
+    pattern = "{%s*\\cal%f[^%a]%s*(%a+)%s*}",
+    replacement = "{\\mathcal{%1}}"
+  },
+  -- {\cal {X}} → {\mathcal{X}}（声明 + 花括号分组参数）
+  {
+    pattern = "{%s*\\cal%f[^%a]%s*(%b{})%s*}",
+    replacement = "{\\mathcal{%1}}"
+  },
+  -- \cal{X} → \mathcal{X}（声明 + 分组参数）
+  {
+    pattern = "\\cal%f[^%a]%s*({[^{}]-})",
+    replacement = "\\mathcal%1"
+  },
+  -- \cal X / \cal\alpha → \mathcal{X} / \mathcal{\alpha}（声明 + 单 token/命令参数）
+  {
+    pattern = "\\cal%f[^%a]%s*([%a\\][%a]*)",
     replacement = "\\mathcal{%1}"
   },
+  -- {\bf X} → {\mathbf{X}}（括号语义同上）
   {
-    pattern = "\\cal%f[^%a]%s+([%a]+)",
-    replacement = "\\mathcal{%1}"
+    pattern = "{%s*\\bf%f[^%a]%s*(%a+)%s*}",
+    replacement = "{\\mathbf{%1}}"
   },
-  -- {\bf X} → \mathbf{X}
+  -- {\bf {X}} → {\mathbf{{X}}}（声明 + 花括号分组参数）
   {
-    pattern = "{%s*\\bf%f[^%a]%s*(%S+)%s*}",
+    pattern = "{%s*\\bf%f[^%a]%s*(%b{})%s*}",
+    replacement = "{\\mathbf{%1}}"
+  },
+  -- \bf{X} → \mathbf{X}
+  {
+    pattern = "\\bf%f[^%a]%s*({[^{}]-})",
+    replacement = "\\mathbf%1"
+  },
+  -- \bf \mathcal{X} → \mathbf{\mathcal{X}}（\bf 后跟带参命令：整体捕获，
+  -- 须置于 \cal 规则之后，防止先行生成的 \mathcal 被误认为 \bf 的参数）
+  {
+    pattern = "\\bf%f[^%a]%s*(\\%a+%s*%b{})",
+    replacement = "\\mathbf{%1}"
+  },
+  -- \bf X / \bf\alpha → \mathbf{X} / \mathbf{\alpha}
+  {
+    pattern = "\\bf%f[^%a]%s*(\\%a+)",
     replacement = "\\mathbf{%1}"
   },
   {
-    pattern = "\\bf%f[^%a]%s+([%a]+)",
+    pattern = "\\bf%f[^%a]%s*([%a]+)",
     replacement = "\\mathbf{%1}"
   },
 
