@@ -258,6 +258,7 @@ nuitka-crash-report.xml
 .omc/
 AGENTS.md
 CLAUDE.md
+.zcodeignore
 
 # Windows
 nul

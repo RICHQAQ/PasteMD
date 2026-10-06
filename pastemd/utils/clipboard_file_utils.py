@@ -7,6 +7,7 @@ both Windows and macOS implementations.
 """
 
 import os
+from .md_image_paths import resolve_markdown_image_paths
 from ..utils.logging import log
 from ..core.errors import ClipboardError
 
@@ -97,6 +98,12 @@ def read_markdown_files(file_paths: list[str]) -> tuple[bool, list[tuple[str, st
         filename = os.path.basename(file_path)
         try:
             content = read_file_with_encoding(file_path)
+            try:
+                # 相对路径图片锚定到源文件目录，否则 Pandoc 以 save_dir 为 cwd 找不到
+                content = resolve_markdown_image_paths(content, os.path.dirname(file_path))
+            except Exception as e:
+                # 图片路径解析失败不应影响文件内容本身的使用
+                log(f"Failed to resolve image paths in '{filename}': {e}")
             files_data.append((filename, content))
             log(f"Successfully read MD file: {filename}")
         except Exception as e:
