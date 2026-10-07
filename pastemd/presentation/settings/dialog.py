@@ -162,6 +162,8 @@ class SettingsDialog:
         self.root.attributes("-topmost", False)
         # 确保有最小化按钮
         self.root.resizable(True, True)
+        # 最小尺寸限制：防止窗口被缩到标签页、按钮挤压不可用（默认尺寸的 70%）
+        self.root.minsize(int(width * 0.7), int(height * 0.7))
 
         # Windows 特有属性
         if is_windows():
