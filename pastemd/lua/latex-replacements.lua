@@ -77,6 +77,38 @@ local mappings = {
     replacement = "\\mathbf{%1}"
   },
 
+  -- \it（LaTeX 2.09 斜体声明）→ \mathit，分支处理与 \bf 一致
+  -- {\it X} → {\mathit{X}}
+  {
+    pattern = "{%s*\\it%f[^%a]%s*(%a+)%s*}",
+    replacement = "{\\mathit{%1}}"
+  },
+  -- {\it {X}} → {\mathit{{X}}}（声明 + 花括号分组参数）
+  {
+    pattern = "{%s*\\it%f[^%a]%s*(%b{})%s*}",
+    replacement = "{\\mathit{%1}}"
+  },
+  -- \it{X} → \mathit{X}
+  {
+    pattern = "\\it%f[^%a]%s*({[^{}]-})",
+    replacement = "\\mathit%1"
+  },
+  -- \it \mathcal{X} → \mathit{\mathcal{X}}（\it 后跟带参命令：整体捕获，
+  -- 须置于 \cal 规则之后，防止先行生成的 \mathcal 被误认为 \it 的参数）
+  {
+    pattern = "\\it%f[^%a]%s*(\\%a+%s*%b{})",
+    replacement = "\\mathit{%1}"
+  },
+  -- \it X / \it\alpha → \mathit{X} / \mathit{\alpha}
+  {
+    pattern = "\\it%f[^%a]%s*(\\%a+)",
+    replacement = "\\mathit{%1}"
+  },
+  {
+    pattern = "\\it%f[^%a]%s*([%a]+)",
+    replacement = "\\mathit{%1}"
+  },
+
   -- 示例：在此处添加更多扩展规则
   -- { pattern = "\\mbox%s*(%b{})", replacement = "\\text%1" },
 }
