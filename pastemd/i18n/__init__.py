@@ -23,8 +23,8 @@ def _get_locales_dir() -> str:
     path = resource_path(os.path.join("i18n", "locales"))
     if os.path.isdir(path):
         return path
-    fallback = os.path.join("pastemd", "i18n", "locales")
-    if os.path.isdir(resource_path(fallback)):
+    fallback = resource_path(os.path.join("pastemd", "i18n", "locales"))
+    if os.path.isdir(fallback):
         return fallback
     return path
 
