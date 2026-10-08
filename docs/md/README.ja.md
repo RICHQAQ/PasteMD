@@ -439,12 +439,12 @@ python main.py
 PyInstaller の場合：
 
 ```bash
-pyinstaller --clean -F -w -n PasteMD
-  --icon assets\icons\logo.ico
-  --add-data "assets\icons;assets\icons"
-  --add-data "pastemd\i18n\locales\*.json;pastemd\i18n\locales"
-  --add-data "pastemd\lua;pastemd\lua"
-  --hidden-import plyer.platforms.win.notification
+pyinstaller --clean -F -w -n PasteMD ^
+  --icon assets\icons\logo.ico ^
+  --add-data "assets\icons;assets\icons" ^
+  --add-data "pastemd\i18n\locales\*.json;pastemd\i18n\locales" ^
+  --add-data "pastemd\lua;pastemd\lua" ^
+  --hidden-import plyer.platforms.win.notification ^
   main.py
 ```
 
