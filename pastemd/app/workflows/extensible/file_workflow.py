@@ -43,7 +43,7 @@ class FileWorkflow(ExtensibleWorkflow):
             self._log(f"File workflow: content_type={content_type}")
 
             if content_type == "table":
-                markdown_text = self._read_markdown_content()
+                markdown_text, _ = self._read_markdown_content()
                 table_data = parse_markdown_table(markdown_text)
                 keep_format = self.config.get(
                     "excel_keep_format", self.config.get("keep_format", True)
@@ -65,6 +65,7 @@ class FileWorkflow(ExtensibleWorkflow):
             else:
                 html_text = ""
                 md_text = ""
+                source_filenames: list[str] = []
                 if content_type == "html":
                     html_text = get_clipboard_html(self.config)
                     html_text = self.html_preprocessor.process(html_text, self.config)
@@ -72,7 +73,7 @@ class FileWorkflow(ExtensibleWorkflow):
                         html_text, self.config
                     )
                 else:
-                    md_text = self._read_markdown_content()
+                    md_text, source_filenames = self._read_markdown_content()
                     md_text = self.markdown_preprocessor.process(md_text, self.config)
                     docx_bytes = self.doc_generator.convert_markdown_to_docx_bytes(
                         md_text, self.config
@@ -83,6 +84,8 @@ class FileWorkflow(ExtensibleWorkflow):
                     save_dir=self.config.get("save_dir", ""),
                     md_text=md_text,
                     html_text=html_text,
+                    source_filenames=source_filenames,
+                    md_name_mode=self.config.get("md_file_output_name_mode", "content"),
                 )
                 self._write_output(output_path, docx_bytes)
                 result = self.placer.place(
@@ -147,8 +150,12 @@ class FileWorkflow(ExtensibleWorkflow):
 
         return "markdown"
 
-    def _read_markdown_content(self) -> str:
-        """读取 Markdown 内容（含剪贴板文件）"""
+    def _read_markdown_content(self) -> tuple[str, list[str]]:
+        """读取 Markdown 内容（含剪贴板文件）
+
+        Returns:
+            (Markdown 文本, 来源 MD 文件名列表)；来源为剪贴板文本时文件名列表为空
+        """
         if not is_clipboard_empty():
             content = get_clipboard_text()
         else:
@@ -156,10 +163,10 @@ class FileWorkflow(ExtensibleWorkflow):
 
         found, files_data, _ = read_markdown_files_from_clipboard()
         if found:
-            return merge_markdown_contents(files_data)
+            return merge_markdown_contents(files_data), [name for name, _ in files_data]
 
         if content.strip():
-            return content
+            return content, []
 
         raise ClipboardError("剪贴板为空或无有效内容")
 

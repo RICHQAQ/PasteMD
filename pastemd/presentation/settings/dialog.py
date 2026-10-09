@@ -523,6 +523,10 @@ class SettingsDialog:
         config["language"] = self.lang_map.get(selected_label, "en-US")
         config["save_dir"] = self.save_dir_var.get()
         config["keep_file"] = self.keep_file_var.get()
+        reverse_name_mode_map = {v: k for k, v in self._md_output_name_map.items()}
+        config["md_file_output_name_mode"] = reverse_name_mode_map.get(
+            self.md_output_name_var.get(), "content"
+        )
         config["notify"] = self.notify_var.get()
         config["startup_notify"] = self.startup_notify_var.get()
         # Preserve the latest hotkey (may have been changed via HotkeyDialog while Settings is open).
@@ -650,17 +654,31 @@ class SettingsDialog:
         self.keep_file_var = tk.BooleanVar(value=self.current_config.get("keep_file", False))
         ttk.Checkbutton(frame, text=t("settings.general.keep_file"), variable=self.keep_file_var).grid(row=3, column=0, columnspan=3, sticky=tk.W, pady=5)
 
+        # MD 文件转换出的文件如何命名（仅“来源为 MD 文件且输出为文件”时生效）
+        ttk.Label(frame, text=t("settings.general.md_output_name_mode")).grid(row=4, column=0, sticky=tk.W, pady=5)
+        self._md_output_name_map = {
+            "content": t("settings.general.md_output_name_content"),
+            "original": t("settings.general.md_output_name_original"),
+        }
+        current_name_mode = self.current_config.get("md_file_output_name_mode", "content")
+        self.md_output_name_var = tk.StringVar(
+            value=self._md_output_name_map.get(current_name_mode, self._md_output_name_map["content"])
+        )
+        self.md_output_name_combo = ttk.Combobox(frame, textvariable=self.md_output_name_var, state="readonly")
+        self.md_output_name_combo['values'] = list(self._md_output_name_map.values())
+        self.md_output_name_combo.grid(row=4, column=1, sticky=tk.W, padx=5, pady=5)
+
         self.notify_var = tk.BooleanVar(value=self.current_config.get("notify", True))
-        ttk.Checkbutton(frame, text=t("settings.general.notify"), variable=self.notify_var).grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=5)
+        ttk.Checkbutton(frame, text=t("settings.general.notify"), variable=self.notify_var).grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=5)
 
         self.startup_notify_var = tk.BooleanVar(value=self.current_config.get("startup_notify", True))
-        ttk.Checkbutton(frame, text=t("settings.general.startup_notify"), variable=self.startup_notify_var).grid(row=5, column=0, columnspan=3, sticky=tk.W, pady=5)
+        ttk.Checkbutton(frame, text=t("settings.general.startup_notify"), variable=self.startup_notify_var).grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=5)
 
         if is_windows():
             self.move_cursor_var = tk.BooleanVar(value=self.current_config.get("move_cursor_to_end", True))
-            ttk.Checkbutton(frame, text=t("settings.general.move_cursor"), variable=self.move_cursor_var).grid(row=6, column=0, columnspan=3, sticky=tk.W, pady=5)
+            ttk.Checkbutton(frame, text=t("settings.general.move_cursor"), variable=self.move_cursor_var).grid(row=7, column=0, columnspan=3, sticky=tk.W, pady=5)
             
-        hotkey_row = 6 if not is_windows() else 7
+        hotkey_row = 7 if not is_windows() else 8
         language_row = hotkey_row + 1
 
         # 热键（从设置页直接打开热键录制）

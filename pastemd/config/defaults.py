@@ -60,6 +60,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "reference_docx": None,
     "save_dir": get_default_save_dir(),
     "keep_file": False,
+    # MD 文件转换出的文件如何命名：content=根据文档内容, original=使用原 MD 文件名
+    # 仅对“来源为 MD 文件且输出为文件”的路径生效
+    "md_file_output_name_mode": "content",
     "notify": True,
     "startup_notify": True,
     "enable_excel": True,

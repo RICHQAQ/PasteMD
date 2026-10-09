@@ -124,6 +124,7 @@ class FallbackWorkflow(BaseWorkflow):
     def _handle_document(self, action: str, content_type: str):
         """处理文档内容（HTML 或 Markdown）"""
         # 1. 读取内容
+        source_filenames: list[str] = []
         if content_type == "html":
             html = get_clipboard_html(self.config)
             html = self.html_preprocessor.process(html, self.config)
@@ -138,6 +139,7 @@ class FallbackWorkflow(BaseWorkflow):
             found, files_data, _ = read_markdown_files_from_clipboard()
             if found:
                 content = merge_markdown_contents(files_data)
+                source_filenames = [name for name, _ in files_data]
             # 预处理
             content = self.markdown_preprocessor.process(content, self.config)
             docx_bytes = self.doc_generator.convert_markdown_to_docx_bytes(
@@ -152,6 +154,8 @@ class FallbackWorkflow(BaseWorkflow):
             save_dir=self.config.get("save_dir", ""),
             md_text=md_text,
             html_text=html if from_html else "",
+            source_filenames=source_filenames,
+            md_name_mode=self.config.get("md_file_output_name_mode", "content"),
         )
         
         # 3. 执行输出
