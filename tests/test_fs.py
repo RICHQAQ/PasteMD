@@ -1,6 +1,7 @@
 import os
+from datetime import datetime
 
-from pastemd.utils.fs import generate_output_path, sanitize_filename
+from pastemd.utils.fs import generate_output_path, generate_unique_path, sanitize_filename
 
 
 def test_sanitize_filename_keeps_regular_names():
@@ -86,4 +87,23 @@ def test_generate_output_path_table_ignores_name_mode(tmp_path):
         md_name_mode="original",
     )
     assert os.path.basename(path) == "姓名_年龄.xlsx"
+
+def test_generate_unique_path_avoids_taken_timestamp_candidate(tmp_path, monkeypatch):
+    """同一秒内带时间戳的候选名也被占用时，继续加序号而不是覆盖。"""
+    import pastemd.utils.fs as fs_module
+
+    class _FixedDateTime:
+        @staticmethod
+        def now():
+            return datetime(2026, 10, 9, 23, 59, 0)
+
+    monkeypatch.setattr(fs_module, "datetime", _FixedDateTime)
+    (tmp_path / "笔记.docx").write_bytes(b"x")
+    (tmp_path / "笔记_20261009_235900.docx").write_bytes(b"y")
+
+    result = generate_unique_path(str(tmp_path / "笔记.docx"))
+
+    assert os.path.basename(result) == "笔记_20261009_235900_1.docx"
+    assert not os.path.exists(result)
+
 

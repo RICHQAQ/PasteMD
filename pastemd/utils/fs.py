@@ -246,9 +246,15 @@ def generate_unique_path(base_path: str) -> str:
     name, ext = os.path.splitext(filename)
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    new_filename = f"{name}_{timestamp}{ext}"
-    
-    return os.path.join(dir_path, new_filename)
+    candidate = os.path.join(dir_path, f"{name}_{timestamp}{ext}")
+
+    # 同一秒内批量生成时，带时间戳的名字也可能已被占用，继续加序号直到空位
+    idx = 1
+    while os.path.exists(candidate):
+        candidate = os.path.join(dir_path, f"{name}_{timestamp}_{idx}{ext}")
+        idx += 1
+
+    return candidate
 
 
 def generate_output_path(keep_file: bool, save_dir: str, md_text: str = "",

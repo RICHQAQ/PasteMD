@@ -3,6 +3,7 @@
 
 from .extensible_base import ExtensibleWorkflow
 from ....core.errors import ClipboardError, PandocError
+from ....core.types import PlacementResult
 from ....utils.clipboard import (
     get_clipboard_text,
     get_clipboard_html,
@@ -42,6 +43,9 @@ class FileWorkflow(ExtensibleWorkflow):
             content_type = self._detect_content_type()
             self._log(f"File workflow: content_type={content_type}")
 
+            success_msg = t("workflow.file.paste_success")
+            result: PlacementResult | None = None
+
             if content_type == "table":
                 markdown_text, _ = self._read_markdown_content()
                 table_data = parse_markdown_table(markdown_text)
@@ -73,29 +77,41 @@ class FileWorkflow(ExtensibleWorkflow):
                         html_text, self.config
                     )
                 else:
-                    md_text, source_filenames = self._read_markdown_content()
-                    md_text = self.markdown_preprocessor.process(md_text, self.config)
-                    docx_bytes = self.doc_generator.convert_markdown_to_docx_bytes(
-                        md_text, self.config
+                    _, files_data, read_errors = read_markdown_files_from_clipboard()
+                    # 触发条件用“剪贴板里检测到的 md 文件数”（成功读取 + 读取失败）：
+                    # 否则部分文件读失败时会静默退回合并模式，且失败文件被丢弃
+                    if (
+                        len(files_data) + len(read_errors) > 1
+                        and self.config.get("md_multi_file_mode", "merge") == "separate"
+                    ):
+                        result, success_msg = self._paste_separate_documents(
+                            files_data, read_errors
+                        )
+                    else:
+                        md_text, source_filenames = self._read_markdown_content()
+                        md_text = self.markdown_preprocessor.process(md_text, self.config)
+                        docx_bytes = self.doc_generator.convert_markdown_to_docx_bytes(
+                            md_text, self.config
+                        )
+
+                if result is None:
+                    output_path = generate_output_path(
+                        keep_file=True,
+                        save_dir=self.config.get("save_dir", ""),
+                        md_text=md_text,
+                        html_text=html_text,
+                        source_filenames=source_filenames,
+                        md_name_mode=self.config.get("md_file_output_name_mode", "content"),
+                    )
+                    self._write_output(output_path, docx_bytes)
+                    result = self.placer.place(
+                        content=output_path,
+                        config=self.config,
+                        file_paths=[output_path],
                     )
 
-                output_path = generate_output_path(
-                    keep_file=True,
-                    save_dir=self.config.get("save_dir", ""),
-                    md_text=md_text,
-                    html_text=html_text,
-                    source_filenames=source_filenames,
-                    md_name_mode=self.config.get("md_file_output_name_mode", "content"),
-                )
-                self._write_output(output_path, docx_bytes)
-                result = self.placer.place(
-                    content=output_path,
-                    config=self.config,
-                    file_paths=[output_path],
-                )
-
             if result.success:
-                self._notify_success(t("workflow.file.paste_success"))
+                self._notify_success(success_msg)
             else:
                 self._notify_error(result.error or t("workflow.action.clipboard_failed"))
 
@@ -149,6 +165,73 @@ class FileWorkflow(ExtensibleWorkflow):
             pass
 
         return "markdown"
+
+    def _paste_separate_documents(
+        self,
+        files_data: list[tuple[str, str]],
+        read_errors: list[tuple[str, str]],
+    ) -> tuple[PlacementResult, str]:
+        """每个 MD 文件单独生成一份文档，再作为多个文件一起粘贴（多文件拆分模式）
+
+        输出位置跟随“保留生成的临时文件”：勾选则写保存目录，否则写临时目录。
+
+        Returns:
+            (粘贴结果, 成功文案)
+        """
+        keep_file = self.config.get("keep_file", False)
+        save_dir = self.config.get("save_dir", "")
+        name_mode = self.config.get("md_file_output_name_mode", "content")
+
+        output_paths: list[str] = []
+        failures: list[tuple[str, str]] = list(read_errors)
+
+        for filename, raw_content in files_data:
+            try:
+                md_text = self.markdown_preprocessor.process(raw_content, self.config)
+                docx_bytes = self.doc_generator.convert_markdown_to_docx_bytes(
+                    md_text, self.config
+                )
+                output_path = generate_output_path(
+                    keep_file=keep_file,
+                    save_dir=save_dir,
+                    md_text=md_text,
+                    source_filenames=[filename],
+                    md_name_mode=name_mode,
+                )
+                self._write_output(output_path, docx_bytes)
+                output_paths.append(output_path)
+            except Exception as e:
+                self._log(f"Failed to convert MD file '{filename}': {e}")
+                failures.append((filename, str(e)))
+
+        if not output_paths:
+            return (
+                PlacementResult(
+                    success=False,
+                    method="clipboard_file",
+                    error=t(
+                        "workflow.md_file.batch_failed_all",
+                        failed_count=len(failures),
+                    ),
+                ),
+                "",
+            )
+
+        result = self.placer.place(
+            content=output_paths[0],
+            config=self.config,
+            file_paths=output_paths,
+        )
+
+        success_msg = t("workflow.file.paste_success_multi", count=len(output_paths))
+        if failures:
+            success_msg += "\n" + t(
+                "workflow.md_file.batch_failure_line",
+                failed_count=len(failures),
+                failed_files=", ".join(name for name, _ in failures),
+            )
+
+        return result, success_msg
 
     def _read_markdown_content(self) -> tuple[str, list[str]]:
         """读取 Markdown 内容（含剪贴板文件）

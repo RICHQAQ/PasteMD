@@ -63,6 +63,9 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     # MD 文件转换出的文件如何命名：content=根据文档内容, original=使用原 MD 文件名
     # 仅对“来源为 MD 文件且输出为文件”的路径生效
     "md_file_output_name_mode": "content",
+    # 剪贴板里有多个 MD 文件时：merge=合并成一个文件, separate=每个文件单独输出
+    # 仅对“来源为多个 MD 文件且输出为文件”的路径生效
+    "md_multi_file_mode": "merge",
     "notify": True,
     "startup_notify": True,
     "enable_excel": True,

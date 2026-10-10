@@ -286,6 +286,8 @@ def _build_save_ready_dialog():
     dlg.keep_file_var = tk.BooleanVar(value=False)
     dlg._md_output_name_map = {"content": "content", "original": "original"}
     dlg.md_output_name_var = tk.StringVar(value="content")
+    dlg._md_multi_file_map = {"merge": "merge", "separate": "separate"}
+    dlg.md_multi_file_var = tk.StringVar(value="merge")
     dlg.notify_var = tk.BooleanVar(value=True)
     dlg.startup_notify_var = tk.BooleanVar(value=True)
     dlg.no_app_action_var = tk.StringVar(value="打开")
@@ -317,6 +319,7 @@ def test_on_save_skips_uncreated_tabs_and_collects_created():
     assert captured.get("save_dir") == "/custom/save"
     # 命名方式下拉框默认收集为 content，保持旧行为
     assert captured.get("md_file_output_name_mode") == "content"
+    assert captured.get("md_multi_file_mode") == "merge"
     # 未创建页的键保持 current_config 原值（不被覆盖也不报错）
     assert captured.get("pandoc_path") == dlg.current_config["pandoc_path"]
     assert captured.get("Keep_original_formula") == dlg.current_config["Keep_original_formula"]
