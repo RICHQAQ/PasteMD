@@ -411,6 +411,9 @@ def test_public_feed_verification_checks_package_lengths(monkeypatch):
     requests = []
     def open_request(request, timeout):
         requests.append(request.get_method())
+        # Some public download security rules reject urllib's default agent.
+        # Feed GET and installer HEAD must identify the verifier consistently.
+        assert request.get_header("User-agent") == "PasteMD-CI-Verification"
         response = io.BytesIO(json.dumps(expected).encode())
         response.geturl = lambda: request.full_url
         response.headers = {"Content-Length": "7"}

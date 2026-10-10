@@ -12,8 +12,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from pastemd.utils.update_manifest import parse_manifest
 
 
+PUBLIC_HEADERS = {"User-Agent": "PasteMD-CI-Verification"}
+
+
 def verify(expected: dict, feed_url: str) -> bool:
-    request = urllib.request.Request(feed_url, headers={"User-Agent": "PasteMD-CI-Verification"})
+    request = urllib.request.Request(feed_url, headers=PUBLIC_HEADERS)
     with urllib.request.urlopen(request, timeout=30) as response:
         if response.geturl().split(":", 1)[0] != "https":
             raise ValueError("Public feed redirected outside HTTPS")
@@ -25,7 +28,7 @@ def verify(expected: dict, feed_url: str) -> bool:
     if actual != expected:
         return False  # CDN may retain the previous valid pointer for up to 300 s.
     for asset in actual["assets"]:
-        request = urllib.request.Request(asset["urls"][0], method="HEAD")
+        request = urllib.request.Request(asset["urls"][0], method="HEAD", headers=PUBLIC_HEADERS)
         with urllib.request.urlopen(request, timeout=30) as response:
             if (response.geturl().split(":", 1)[0] != "https"
                     or int(response.headers.get("Content-Length", "-1")) != asset["size"]):
