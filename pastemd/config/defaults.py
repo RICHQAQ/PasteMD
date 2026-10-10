@@ -58,6 +58,7 @@ RESERVED_APPS = {"word", "wps", "excel", "wps_excel"}
 DEFAULT_CONFIG: Dict[str, Any] = {
     "update_manifest_url": DEFAULT_MANIFEST_URL,
     "update_channel": DEFAULT_UPDATE_CHANNEL,
+    "dev": {"enabled": False, "version": ""},
     "hotkey": "<ctrl>+<shift>+b",
     "pandoc_path": find_pandoc(),
     "reference_docx": None,

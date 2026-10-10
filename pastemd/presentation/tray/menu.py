@@ -104,6 +104,11 @@ class TrayMenuManager:
             ),
         ]
         session = self.update_session
+        if session.debug_version_active:
+            version_menu_items.append(pystray.MenuItem(
+                t("update.debug_version", version=session.comparison_version),
+                lambda icon, item: None, enabled=False,
+            ))
         if session.state != "idle":
             version_menu_items.append(pystray.MenuItem(
                 lambda item: self._update_menu_text(), self._on_show_update,
@@ -330,6 +335,9 @@ class TrayMenuManager:
         """打开设置界面"""
         def on_settings_save():
             """设置保存后的回调"""
+            self.update_session.config = app_state.config
+            if self.update_dialog:
+                self.update_dialog.render()
             # 刷新菜单以反映可能的配置更改（如语言）
             set_language(app_state.config.get("language", "en-US"))
             try:

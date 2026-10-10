@@ -40,7 +40,9 @@ class UpdateDialog:
         frame.pack(fill="both", expand=True)
         self.heading = ttk.Label(frame, font=("TkDefaultFont", 15, "bold"))
         self.heading.pack(anchor="w")
-        ttk.Label(frame, text=t("update.current_version", version=__version__)).pack(anchor="w", pady=(5, 10))
+        self.current_version_label = ttk.Label(frame, text=t("update.current_version", version=__version__))
+        self.current_version_label.pack(anchor="w", pady=(5, 10))
+        self.debug_version_label = ttk.Label(frame, foreground="gray", wraplength=520)
         notes_frame = ttk.Frame(frame)
         notes_frame.pack(fill="both", expand=True)
         self.notes = tk.Text(notes_frame, wrap="word", height=8, relief="flat", padx=10, pady=10)
@@ -75,6 +77,11 @@ class UpdateDialog:
 
     def render(self):
         session = self.session
+        if session.debug_version_active:
+            self.debug_version_label.configure(text=t("update.debug_version", version=session.comparison_version))
+            self.debug_version_label.pack(after=self.current_version_label, anchor="w", pady=(0, 8))
+        else:
+            self.debug_version_label.pack_forget()
         version = session.release["latest_version"] if session.release else None
         self.heading.configure(text=t("update.new_version", version=version) if version else t("update.title"))
         if self._notes_version != version or self._notes_version is None:

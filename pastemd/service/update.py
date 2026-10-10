@@ -17,7 +17,7 @@ from typing import Callable
 
 from .. import __version__
 from ..utils.logging import log
-from ..utils.update_manifest import DEFAULT_MANIFEST_URL, DEFAULT_UPDATE_CHANNEL
+from ..utils.update_manifest import DEFAULT_MANIFEST_URL, DEFAULT_UPDATE_CHANNEL, valid_version
 from ..utils.version_checker import VersionChecker
 from ..utils.updater import (PreparedUpdate, UpdateCancelled, UpdateError,
                              download_asset, get_install_target, refresh_release_assets,
@@ -39,6 +39,8 @@ class UpdateSession:
         self.events: queue.Queue = queue.Queue()
         self.worker: threading.Thread | None = None
         self.manual_check = False
+        self.comparison_version = __version__
+        self.debug_version_active = False
 
     @property
     def busy(self) -> bool:
@@ -74,10 +76,24 @@ class UpdateSession:
         if self.busy or self.prepared:
             return
         self.manual_check = manual
+        dev = self.config.get("dev")
+        dev = dev if isinstance(dev, dict) else {}
+        simulated = dev.get("version")
+        self.debug_version_active = dev.get("enabled") is True and valid_version(simulated)
+        self.comparison_version = simulated if self.debug_version_active else __version__
+        if self.debug_version_active:
+            log(f"[update] DEV version simulation: actual={__version__}, "
+                f"comparison={self.comparison_version}; installer verification is unchanged")
+        elif dev.get("enabled") is True:
+            log(f"[update] Invalid dev.version={simulated!r}; using actual version {__version__}")
+        # Capture settings for this check; saving settings can replace the config
+        # dictionary while the worker runs.
+        comparison_version = self.comparison_version
+        manifest_url = self.config.get("update_manifest_url", DEFAULT_MANIFEST_URL)
+        channel = self.config.get("update_channel", DEFAULT_UPDATE_CHANNEL)
 
         def operation():
-            checker = VersionChecker(__version__, self.config.get("update_manifest_url", DEFAULT_MANIFEST_URL),
-                                     self.config.get("update_channel", DEFAULT_UPDATE_CHANNEL))
+            checker = VersionChecker(comparison_version, manifest_url, channel)
             result = checker.check_update()
             if result is None:
                 raise UpdateError("check_failed")
