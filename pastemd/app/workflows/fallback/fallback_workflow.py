@@ -124,6 +124,7 @@ class FallbackWorkflow(BaseWorkflow):
     def _handle_document(self, action: str, content_type: str):
         """处理文档内容（HTML 或 Markdown）"""
         # 1. 读取内容
+        source_filenames: list[str] = []
         if content_type == "html":
             html = get_clipboard_html(self.config)
             html = self.html_preprocessor.process(html, self.config)
@@ -134,10 +135,20 @@ class FallbackWorkflow(BaseWorkflow):
             md_text = ""
         else:
             # Markdown
+            found, files_data, read_errors = read_markdown_files_from_clipboard()
+            # 触发条件用“剪贴板里检测到的 md 文件数”（成功读取 + 读取失败）：
+            # 否则部分文件读失败时会静默退回合并模式，且失败文件被丢弃
+            if (
+                len(files_data) + len(read_errors) > 1
+                and self.config.get("md_multi_file_mode", "merge") == "separate"
+            ):
+                self._handle_separate_documents(action, files_data, read_errors)
+                return
+
             content = get_clipboard_text()
-            found, files_data, _ = read_markdown_files_from_clipboard()
             if found:
                 content = merge_markdown_contents(files_data)
+                source_filenames = [name for name, _ in files_data]
             # 预处理
             content = self.markdown_preprocessor.process(content, self.config)
             docx_bytes = self.doc_generator.convert_markdown_to_docx_bytes(
@@ -152,6 +163,8 @@ class FallbackWorkflow(BaseWorkflow):
             save_dir=self.config.get("save_dir", ""),
             md_text=md_text,
             html_text=html if from_html else "",
+            source_filenames=source_filenames,
+            md_name_mode=self.config.get("md_file_output_name_mode", "content"),
         )
         
         # 3. 执行输出
@@ -166,6 +179,48 @@ class FallbackWorkflow(BaseWorkflow):
         if not success:
             self._log(f"DOCX output failed with action: {action}")
     
+    def _handle_separate_documents(
+        self,
+        action: str,
+        files_data: list[tuple[str, str]],
+        read_errors: list[tuple[str, str]],
+    ) -> None:
+        """每个 MD 文件单独生成一份文档（多文件拆分模式）
+
+        输出位置跟随“保留生成的临时文件”：勾选则写保存目录，否则写临时目录。
+        """
+        keep_file = self.config.get("keep_file", False)
+        save_dir = self.config.get("save_dir", "")
+        name_mode = self.config.get("md_file_output_name_mode", "content")
+
+        items: list[tuple[bytes, str, str]] = []
+        failures: list[tuple[str, str]] = list(read_errors)
+
+        for filename, raw_content in files_data:
+            try:
+                md_text = self.markdown_preprocessor.process(raw_content, self.config)
+                docx_bytes = self.doc_generator.convert_markdown_to_docx_bytes(
+                    md_text, self.config
+                )
+                output_path = generate_output_path(
+                    keep_file=keep_file,
+                    save_dir=save_dir,
+                    md_text=md_text,
+                    source_filenames=[filename],
+                    md_name_mode=name_mode,
+                )
+                items.append((docx_bytes, output_path, filename))
+            except Exception as e:
+                self._log(f"Failed to convert MD file '{filename}': {e}")
+                failures.append((filename, str(e)))
+
+        self.output_executor.execute_docx_batch(
+            action=action,
+            items=items,
+            from_md_file=True,
+            pre_failures=failures,
+        )
+
     def _read_markdown_content(self) -> str:
         """
         读取 Markdown 内容

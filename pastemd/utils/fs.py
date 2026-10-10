@@ -159,13 +159,14 @@ def extract_table_name_from_data(table_data: List[List[str]], max_chars: int = 3
     return None
 
 
-def sanitize_filename(filename: str, max_length: int = 100) -> str:
+def sanitize_filename(filename: str, max_length: int = 100, fallback: str = "document") -> str:
     """
     清理文件名，移除不允许的字符
     
     Args:
         filename: 原始文件名
         max_length: 最大长度
+        fallback: 清理后为空时的兜底名称（传空字符串表示返回空）
         
     Returns:
         清理后的文件名
@@ -193,7 +194,37 @@ def sanitize_filename(filename: str, max_length: int = 100) -> str:
     if stem.upper() in reserved_names:
         cleaned = f"{stem}_{ext}"
     
-    return cleaned or "document"
+    return cleaned or fallback
+
+
+def extract_name_from_source_files(source_filenames: Optional[List[str]]) -> Optional[str]:
+    """
+    从来源 MD 文件名生成本次输出的文件名（不含扩展名）
+
+    多个来源文件时用下划线连接；与内容命名不同，不按 30 字截断，仅受整体长度上限约束。
+
+    Args:
+        source_filenames: 来源文件名列表（可含扩展名）
+
+    Returns:
+        清理后的文件名；来源为空或清理后为空则返回 None（由调用方回退到内容命名）
+    """
+    if not source_filenames:
+        return None
+
+    stems = []
+    for filename in source_filenames:
+        if not filename:
+            continue
+        stem = os.path.splitext(os.path.basename(str(filename)))[0].strip()
+        if stem:
+            stems.append(stem)
+
+    if not stems:
+        return None
+
+    cleaned = sanitize_filename("_".join(stems), max_length=100, fallback="")
+    return cleaned or None
 
 
 def generate_unique_path(base_path: str) -> str:
@@ -215,14 +246,22 @@ def generate_unique_path(base_path: str) -> str:
     name, ext = os.path.splitext(filename)
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    new_filename = f"{name}_{timestamp}{ext}"
-    
-    return os.path.join(dir_path, new_filename)
+    candidate = os.path.join(dir_path, f"{name}_{timestamp}{ext}")
+
+    # 同一秒内批量生成时，带时间戳的名字也可能已被占用，继续加序号直到空位
+    idx = 1
+    while os.path.exists(candidate):
+        candidate = os.path.join(dir_path, f"{name}_{timestamp}_{idx}{ext}")
+        idx += 1
+
+    return candidate
 
 
 def generate_output_path(keep_file: bool, save_dir: str, md_text: str = "",
                          table_data: Optional[List[List[str]]] = None,
-                         html_text: str = "") -> str:
+                         html_text: str = "",
+                         source_filenames: Optional[List[str]] = None,
+                         md_name_mode: str = "content") -> str:
     """
     生成输出文件路径，优先使用内容中提取的名称
     
@@ -232,6 +271,8 @@ def generate_output_path(keep_file: bool, save_dir: str, md_text: str = "",
     md_text: Markdown 文本（用于提取标题）
         table_data: 表格数据（用于提取表名）
     html_text: HTML 富文本（用于提取标题）
+        source_filenames: 来源 MD 文件名列表（按原文件名命名时使用）
+        md_name_mode: 命名方式，content=根据文档内容, original=使用原文件名
         
     Returns:
         输出文件的完整路径
@@ -245,19 +286,25 @@ def generate_output_path(keep_file: bool, save_dir: str, md_text: str = "",
         if table_name:
             filename = f"{table_name}.{file_ext}"
     
-    # 优先级 2: 如果是 HTML，使用 HTML 标题
+    # 优先级 2: 来源为 MD 文件且设置了按原文件名命名
+    if filename is None and md_name_mode == "original":
+        source_name = extract_name_from_source_files(source_filenames)
+        if source_name:
+            filename = f"{source_name}.{file_ext}"
+
+    # 优先级 3: 如果是 HTML，使用 HTML 标题
     if filename is None and html_text:
         html_title = extract_title_from_html(html_text)
         if html_title:
             filename = f"{html_title}.{file_ext}"
 
-    # 优先级 3: 如果是文档，使用标题
+    # 优先级 4: 如果是文档，使用标题
     if filename is None and md_text:
         title = extract_title_from_markdown(md_text)
         if title:
             filename = f"{title}.{file_ext}"
     
-    # 优先级 4: 使用时间戳
+    # 优先级 5: 使用时间戳
     if filename is None:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"md_paste_{timestamp}.{file_ext}"

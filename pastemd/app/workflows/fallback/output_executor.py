@@ -3,6 +3,7 @@
 import os
 from typing import List, Tuple, Optional
 
+from pastemd.core.constants import BATCH_OPEN_LIMIT
 from pastemd.utils.clipboard import copy_files_to_clipboard
 from pastemd.utils.logging import log
 from pastemd.service.awakener import AppLauncher
@@ -100,94 +101,66 @@ class OutputExecutor:
         from_md_file: bool = False,
         from_html: bool = False,
         pre_failures: Optional[List[Tuple[str, str]]] = None,
+        open_limit: Optional[int] = None,
     ) -> dict:
         """
-        批量执行 DOCX 输出（仅用于无应用多文件分支）
+        批量执行 DOCX 输出（多文件分开输出时使用）
+
+        逐个文件写盘（同名自动加时间戳，不覆盖），再按动作统一落地，最后只发一条汇总通知。
 
         Args:
-            action: 输出动作 ("open" | "save" | "clipboard")
+            action: 输出动作 ("open" | "save" | "clipboard" | "none")
             items: [(docx_bytes, output_path, source_filename), ...]
             from_md_file: 是否来源于 MD 文件（影响通知文案）
             from_html: 是否来源于 HTML（影响通知文案）
             pre_failures: 生成阶段已失败的 [(filename, error), ...]
+            open_limit: 自动打开的数量上限，超过则只保存不打开（默认 BATCH_OPEN_LIMIT）
 
         Returns:
             {"success_paths": [...], "failures": [(filename, error), ...]}
         """
-        if not items:
-            return {"success_paths": [], "failures": list(pre_failures or [])}
-
-        # 确保批内输出路径唯一，避免同名覆盖
-        seen_paths: set[str] = set()
-        normalized_items: List[Tuple[bytes, str, str]] = []
-        for docx_bytes, output_path, source_filename in items:
-            unique_path = output_path
-
-            if unique_path in seen_paths:
-                base_dir = os.path.dirname(unique_path)
-                stem, ext = os.path.splitext(os.path.basename(unique_path))
-                idx = 1
-                candidate = unique_path
-                while candidate in seen_paths or os.path.exists(candidate):
-                    candidate = os.path.join(base_dir, f"{stem}_batch{idx}{ext}")
-                    idx += 1
-                unique_path = candidate
-            else:
-                unique_path = generate_unique_path(unique_path)
-                while unique_path in seen_paths or os.path.exists(unique_path):
-                    unique_path = generate_unique_path(unique_path)
-
-            seen_paths.add(unique_path)
-            normalized_items.append((docx_bytes, unique_path, source_filename))
-
+        limit = BATCH_OPEN_LIMIT if open_limit is None else open_limit
         success_paths: List[str] = []
         failures: List[Tuple[str, str]] = list(pre_failures or [])
 
-        for docx_bytes, output_path, source_filename in normalized_items:
+        # 文件过多时不自动打开，避免一次弹出大量窗口
+        open_skipped = action == "open" and len(items) > limit
+        effective_action = "save" if open_skipped else action
+
+        if not items:
+            if effective_action != "none":
+                self._notify_batch_result(effective_action, success_paths, failures, False)
+            return {"success_paths": success_paths, "failures": failures}
+
+        for docx_bytes, output_path, source_filename in items:
             try:
+                # 写盘前逐项定名：与本次已写出的同名文件错开
+                output_path = generate_unique_path(output_path)
                 with open(output_path, "wb") as f:
                     f.write(docx_bytes)
                 log(f"Generated DOCX (batch): {output_path}")
 
-                if action == "open":
-                    ok = self._docx_open(
-                        output_path, from_md_file, from_html, notify_success=False
-                    )
-                elif action == "save":
-                    ok = self._docx_save(output_path, from_md_file, notify_success=False)
-                elif action == "clipboard":
-                    ok = True
-                else:
-                    log(f"Unknown DOCX action in batch: {action}")
-                    ok = False
-
-                if ok:
+                if effective_action == "open":
+                    if self._docx_open(
+                        output_path,
+                        from_md_file,
+                        from_html,
+                        notify_success=False,
+                        notify_failure=False,
+                    ):
+                        success_paths.append(output_path)
+                    else:
+                        failures.append((source_filename, "action_failed:open"))
+                elif effective_action in ("save", "clipboard", "none"):
                     success_paths.append(output_path)
                 else:
-                    failures.append((source_filename, f"action_failed:{action}"))
+                    log(f"Unknown DOCX action in batch: {effective_action}")
             except Exception as e:
                 log(f"DOCX batch item failed ({source_filename}): {e}")
-                # 逐项失败通知保持旧语义
-                if action == "clipboard":
-                    self.notification_manager.notify(
-                        "PasteMD", t("workflow.action.clipboard_failed"), ok=False
-                    )
-                elif action == "save":
-                    self.notification_manager.notify(
-                        "PasteMD", t("workflow.document.save_failed"), ok=False
-                    )
-                elif from_html:
-                    self.notification_manager.notify(
-                        "PasteMD", t("workflow.html.generate_failed"), ok=False
-                    )
-                else:
-                    self.notification_manager.notify(
-                        "PasteMD", t("workflow.document.generate_failed"), ok=False
-                    )
                 failures.append((source_filename, str(e)))
 
         # clipboard 动作：末尾一次性写入剪贴板（CF_HDROP 多路径）
-        if action == "clipboard" and success_paths:
+        if effective_action == "clipboard" and success_paths:
             try:
                 copy_files_to_clipboard(success_paths)
             except Exception as e:
@@ -198,22 +171,38 @@ class OutputExecutor:
                 failures.append(("_batch_clipboard", str(e)))
                 return {"success_paths": success_paths, "failures": failures}
 
-        # 多文件批量成功通知收敛为 1 条
-        total_attempted = len(items) + len(pre_failures or [])
-        if total_attempted > 1 and success_paths:
-            action_name = (
-                t(f"action.{action}")
-                if action in ("open", "save", "clipboard", "none")
-                else action
+        # "none" 动作只写盘、不通知（与单文件路径一致）
+        if effective_action != "none":
+            self._notify_batch_result(
+                effective_action, success_paths, failures, open_skipped
             )
-            msg = t("workflow.md_file.batch_success", count=len(success_paths))
-            msg += "\n" + t("workflow.md_file.batch_action_line", action=action_name)
 
-            failed_items = [
-                name
-                for name, _ in failures
-                if name and not name.startswith("_batch_")
-            ]
+        return {"success_paths": success_paths, "failures": failures}
+
+    def _notify_batch_result(
+        self,
+        action: str,
+        success_paths: List[str],
+        failures: List[Tuple[str, str]],
+        open_skipped: bool,
+    ) -> None:
+        """多文件批量输出后只发一条汇总通知"""
+        failed_items = [
+            name for name, _ in failures if name and not name.startswith("_batch_")
+        ]
+
+        if success_paths:
+            if open_skipped:
+                msg = t("workflow.md_file.batch_generated_only", count=len(success_paths))
+            else:
+                action_name = (
+                    t(f"action.{action}")
+                    if action in ("open", "save", "clipboard", "none")
+                    else action
+                )
+                msg = t("workflow.md_file.batch_success", count=len(success_paths))
+                msg += "\n" + t("workflow.md_file.batch_action_line", action=action_name)
+
             if failed_items:
                 msg += "\n" + t(
                     "workflow.md_file.batch_failure_line",
@@ -222,8 +211,14 @@ class OutputExecutor:
                 )
 
             self.notification_manager.notify("PasteMD", msg, ok=True)
-
-        return {"success_paths": success_paths, "failures": failures}
+        elif failed_items:
+            msg = t("workflow.md_file.batch_failed_all", failed_count=len(failed_items))
+            msg += "\n" + t(
+                "workflow.md_file.batch_failure_line",
+                failed_count=len(failed_items),
+                failed_files=", ".join(failed_items),
+            )
+            self.notification_manager.notify("PasteMD", msg, ok=False)
 
     def execute_xlsx(
         self,
@@ -276,6 +271,7 @@ class OutputExecutor:
         from_html: bool,
         *,
         notify_success: bool = True,
+        notify_failure: bool = True,
     ) -> bool:
         """打开 DOCX 文件"""
         if AppLauncher.awaken_and_open_document(output_path):
@@ -289,11 +285,12 @@ class OutputExecutor:
                 self.notification_manager.notify("PasteMD", msg, ok=True)
             return True
         else:
-            self.notification_manager.notify(
-                "PasteMD",
-                t("workflow.document.open_failed", path=output_path),
-                ok=False
-            )
+            if notify_failure:
+                self.notification_manager.notify(
+                    "PasteMD",
+                    t("workflow.document.open_failed", path=output_path),
+                    ok=False
+                )
             return False
     
     def _docx_save(
