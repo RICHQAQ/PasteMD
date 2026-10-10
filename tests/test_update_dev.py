@@ -107,7 +107,7 @@ def test_install_preparation_keeps_real_manifest_version(monkeypatch, tmp_path):
     current.shutdown()
 
 
-def test_advanced_settings_preserve_other_dev_flags():
+def test_advanced_settings_preserve_hidden_dev_config():
     from pastemd.presentation.settings.dialog import SettingsDialog
 
     settings = object.__new__(SettingsDialog)
@@ -115,16 +115,16 @@ def test_advanced_settings_preserve_other_dev_flags():
     settings.excel_enable_var = value(True)
     settings.excel_format_var = value(True)
     settings.paste_delay_var = value("0.3")
-    settings.dev_enabled_var = value(True)
-    settings.dev_version_var = value(" 0.1.7.6 ")
-    config = {"dev": {"enabled": False, "future_debug_flag": True}}
+    config = {"dev": {"enabled": True, "version": "0.1.7.6", "future_debug_flag": True}}
     settings._collect_advanced(config)
     assert config["dev"] == {"enabled": True, "version": "0.1.7.6", "future_debug_flag": True}
 
 
-def test_invalid_debug_version_cannot_be_saved(monkeypatch):
+def test_hidden_invalid_debug_version_does_not_block_settings_save(monkeypatch):
     from pastemd.presentation.settings.dialog import SettingsDialog
+    from pastemd.core.state import app_state
 
+    monkeypatch.setattr(app_state, "config", {})
     settings = object.__new__(SettingsDialog)
     settings.current_config = {"dev": {"enabled": True, "version": "bad"}}
     settings._confirm_keep_formula_enable = lambda: True
@@ -132,6 +132,11 @@ def test_invalid_debug_version_cannot_be_saved(monkeypatch):
     saved, errors = [], []
     settings.config_loader = SimpleNamespace(save=lambda config: saved.append(config))
     settings._show_topmost_message = lambda title, message, kind: errors.append((message, kind))
+    settings.on_save_callback = None
+    settings._call_on_close_callback = lambda: None
+    settings._safe_destroy = lambda: None
     settings._on_save()
-    assert saved == []
-    assert len(errors) == 1 and errors[0][1] == "error"
+    assert len(saved) == 1
+    assert saved[0]["dev"] == {"enabled": True, "version": "bad"}
+    assert app_state.config["dev"] == saved[0]["dev"]
+    assert len(errors) == 1 and errors[0][1] == "info"

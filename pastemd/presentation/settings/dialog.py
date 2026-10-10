@@ -19,7 +19,6 @@ from ...i18n import t, iter_languages, get_language_label, get_no_app_action_map
 from ...core.state import app_state
 from ...config.loader import ConfigLoader
 from ...config.defaults import DEFAULT_CONFIG
-from ...utils.update_manifest import valid_version
 from .extensions_tab import ExtensionsTab
 
 if is_macos():
@@ -588,10 +587,6 @@ class SettingsDialog:
         config["enable_excel"] = self.excel_enable_var.get()
         config["excel_keep_format"] = self.excel_format_var.get()
         config["paste_delay_s"] = self._sanitize_paste_delay(self.paste_delay_var.get())
-        dev = config.get("dev")
-        dev = dict(dev) if isinstance(dev, dict) else {}
-        dev.update(enabled=self.dev_enabled_var.get(), version=self.dev_version_var.get().strip())
-        config["dev"] = dev
 
     def _collect_experimental(self, config: dict) -> None:
         """收集实验性页配置。仅在该页已创建时被 _on_save 调用。"""
@@ -871,26 +866,6 @@ class SettingsDialog:
             font=("", 8),
         ).grid(row=3, column=0, columnspan=2, sticky=tk.W, padx=(0, 5), pady=(0, 5))
 
-        dev = self.current_config.get("dev")
-        dev = dev if isinstance(dev, dict) else {}
-        dev_frame = ttk.LabelFrame(frame, text=t("settings.dev.title"), padding=10)
-        dev_frame.grid(row=4, column=0, columnspan=2, sticky=tk.EW, pady=(15, 0))
-        dev_frame.columnconfigure(1, weight=1)
-        self.dev_enabled_var = tk.BooleanVar(value=dev.get("enabled") is True)
-        self.dev_version_var = tk.StringVar(value=dev.get("version") if isinstance(dev.get("version"), str) else "")
-        ttk.Checkbutton(dev_frame, text=t("settings.dev.enabled"), variable=self.dev_enabled_var,
-                        command=self._update_dev_version_state).grid(row=0, column=0, columnspan=2, sticky=tk.W)
-        ttk.Label(dev_frame, text=t("settings.dev.version")).grid(row=1, column=0, sticky=tk.W, pady=8)
-        self.dev_version_entry = ttk.Entry(dev_frame, textvariable=self.dev_version_var, width=22)
-        self.dev_version_entry.grid(row=1, column=1, sticky=tk.EW, padx=(10, 0), pady=8)
-        self.dev_version_entry.bind("<FocusIn>", self._on_focus_in)
-        ttk.Label(dev_frame, text=t("settings.dev.note"), foreground="gray", wraplength=440).grid(
-            row=2, column=0, columnspan=2, sticky=tk.W)
-        self._update_dev_version_state()
-
-    def _update_dev_version_state(self):
-        self.dev_version_entry.configure(state="normal" if self.dev_enabled_var.get() else "disabled")
-
     def _create_experimental_tab(self):
         """创建实验性功能选项卡"""
         frame = ttk.Frame(self.notebook, padding=10)
@@ -1143,11 +1118,6 @@ class SettingsDialog:
 
             # 无条件规范 paste_delay_s：即使 advanced 页未创建，也修复手改配置引入的坏值
             new_config["paste_delay_s"] = self._sanitize_paste_delay(new_config.get("paste_delay_s"))
-
-            dev = new_config.get("dev")
-            if isinstance(dev, dict) and dev.get("enabled") is True and not valid_version(dev.get("version")):
-                self._show_topmost_message(t("settings.title.error"), t("settings.dev.invalid_version"), "error")
-                return
 
             # 保存到文件
             self.config_loader.save(new_config)
