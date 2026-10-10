@@ -42,14 +42,16 @@ def main():
     expected = json.loads(args.manifest.read_text(encoding="utf-8"))
     # Validate the origin before making network requests.
     parse_manifest(expected, args.feed_url, expected["channel"])
-    for attempt in range(23):
+    # A cached pointer can live for 300 s. Check sparingly instead of polling
+    # the public bucket every few seconds.
+    for attempt in range(7):
         if verify(expected, args.feed_url):
             print(f"Public feed verified: {args.feed_url} ({expected['version']})")
             return
-        if attempt < 22:
-            print("Waiting 15 s for the cached update pointer to expire...", flush=True)
-            time.sleep(15)
-    raise ValueError("Public update pointer did not become visible within 330 s")
+        if attempt < 6:
+            print("Waiting 60 s for the cached update pointer to expire...", flush=True)
+            time.sleep(60)
+    raise ValueError("Public update pointer did not become visible within 360 s")
 
 
 if __name__ == "__main__":

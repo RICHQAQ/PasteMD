@@ -175,7 +175,7 @@ pastemd/releases/v0.1.7.7/PasteMD-0.1.7.7-x86_64.dmg
 | Variable | `R2_TEST_PUBLIC_BASE_URL` | bucket 的 HTTPS 公开地址，不带对象路径，如 `https://pub-....r2.dev` |
 | Variable | `R2_TEST_ENABLED` | 全部配置好后填 `true` |
 
-测试前缀固定为 `pastemd-test`，不能通过正式 `R2_KEY_PREFIX` 改写。未启用测试上传时仍构建并保存包、生成清单，但 summary 明确显示上传已跳过。实际上传后 CI 校验公开清单和三个包的 HEAD/大小；公开清单因缓存延迟时最多等 330 秒。它不代替真实客户端下载、哈希校验和安装验收。
+测试前缀固定为 `pastemd-test`，不能通过正式 `R2_KEY_PREFIX` 改写。未启用测试上传时仍构建并保存包、生成清单，但 summary 明确显示上传已跳过。实际上传后 CI 校验公开清单和三个包的 HEAD/大小；公开清单因缓存延迟时每 60 秒检查一次，最多 7 次、等待 360 秒。它不代替真实客户端下载、哈希校验和安装验收。
 
 ### 7.3 完整 A → B 测试
 
