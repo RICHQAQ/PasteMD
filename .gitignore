@@ -239,7 +239,11 @@ pandoc/pandoc-*
 .idea/inspectionProfiles/profiles_settings.xml
 .idea/inspectionProfiles/Project_Default.xml
 
-/scripts
+/scripts/*
+!/scripts/publish_update.py
+!/scripts/prepare_test_build.py
+!/scripts/verify_update_feed.py
+/update-manifest.json
 /test
 .vscode/launch.json
 .vscode/settings.json

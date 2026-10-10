@@ -107,6 +107,7 @@ fi
 # 版本号
 ############################
 VERSION="$("$PYTHON_BIN" -c "import sys; sys.path.insert(0,'.'); from pastemd import __version__; print(__version__)")"
+NUMERIC_VERSION="$("$PYTHON_BIN" -c "import re; from pastemd import __version__; print(re.match(r'\d+(?:\.\d+)*', __version__).group())")"
 echo "==> 版本号：$VERSION"
 
 ############################
@@ -158,7 +159,7 @@ fi
 
 # 可选：写入版本号
 if has_nuitka_opt "--macos-app-version"; then
-  NUITKA_CMD+=( --macos-app-version="$VERSION" )
+  NUITKA_CMD+=( --macos-app-version="$NUMERIC_VERSION" )
 fi
 
 # 让 bundle id 稳定
@@ -207,6 +208,10 @@ if [[ "$CURRENT_ID" != "$BUNDLE_ID" ]]; then
   /usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $BUNDLE_ID" "$PLIST_PATH" 2>/dev/null \
     || /usr/libexec/PlistBuddy -c "Add :CFBundleIdentifier string $BUNDLE_ID" "$PLIST_PATH"
 fi
+
+# The update client checks this value against the manifest before replacing the app.
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$PLIST_PATH" 2>/dev/null \
+  || /usr/libexec/PlistBuddy -c "Add :CFBundleShortVersionString string $VERSION" "$PLIST_PATH"
 
 echo "==> 写入 Info.plist 权限描述..."
 /usr/libexec/PlistBuddy -c "Set :NSAppleEventsUsageDescription $APPLE_EVENTS_DESC" "$PLIST_PATH" 2>/dev/null \
@@ -365,7 +370,7 @@ if [[ -f "$NOTICES_SRC" ]]; then
   cp -f "$NOTICES_SRC" "$STAGE_DIR/THIRD_PARTY_NOTICES.md"
 fi
 
-DMG_PATH="$DIST_DIR/${APP_NAME}-${VERSION}.dmg"
+DMG_PATH="$DIST_DIR/${APP_NAME}-${VERSION}-$(uname -m).dmg"
 rm -f "$DMG_PATH"
 
 hdiutil create \

@@ -420,7 +420,7 @@ Example config (excerpt):
 * Set hotkey: record and save a new global hotkey in the UI (takes effect immediately).
 * Keep generated files: when enabled, DOCX files are saved to `save_dir`.
 * Open save directory, view logs, edit config, reload config/hotkey.
-* Version: show current version; check for updates; when available, show item and open download page.
+* Version: download updates in the app, with progress, size and speed in the tray. Cancel or retry, then install and restart. Cloudflare R2 is the preferred source, with GitHub as a fallback. See the [update configuration guide](UPDATES.md).
 * Quit: exit the app.
 
 ---

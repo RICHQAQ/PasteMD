@@ -27,12 +27,10 @@ except Exception:
 
 from ..utils.dpi import set_dpi_awareness
 
-from .. import __version__
 from ..core.state import app_state
 from ..core.singleton import check_single_instance
 from ..config.loader import ConfigLoader
 from ..utils.logging import log
-from ..utils.version_checker import VersionChecker
 from ..service.notification.manager import NotificationManager
 from ..i18n import FALLBACK_LANGUAGE, detect_system_language, set_language, t
 from .wiring import Container
@@ -95,29 +93,9 @@ def show_startup_notification(notification_manager: NotificationManager) -> None
 
 
 def check_update_in_background(notification_manager: NotificationManager, tray_menu_manager=None) -> None:
-    """在后台检查版本更新"""
-    def _check():
-        try:
-
-            checker = VersionChecker(__version__)
-            result = checker.check_update()
-            
-            if result and result.get("has_update"):
-                latest_version = result.get("latest_version")
-                release_url = result.get("release_url")
-                
-                # 使用菜单管理器的方法更新版本信息并重新绘制菜单
-                if tray_menu_manager and app_state.icon:
-                    tray_menu_manager.update_version_info(app_state.icon, latest_version, release_url)
-                
-                log(f"New version available: {latest_version}")
-                log(f"Download URL: {release_url}")
-        except Exception as e:
-            log(f"Background version check failed: {e}")
-    
-    # 启动后台线程，不阻塞主程序
-    thread = threading.Thread(target=_check, daemon=True)
-    thread.start()
+    """Start the shared background update session; all UI changes stay on Tk."""
+    if tray_menu_manager:
+        tray_menu_manager.start_updates()
 
 
 def main() -> None:

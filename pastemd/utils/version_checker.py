@@ -10,16 +10,19 @@ from typing import Optional, Dict, Any, Tuple
 
 from .logging import log
 from .system_detect import is_windows
+from .update_manifest import DEFAULT_MANIFEST_URL, DEFAULT_UPDATE_CHANNEL, parse_manifest, valid_version
 
 
 class VersionChecker:
-    """检查 GitHub 最新版本"""
+    """优先检查 R2 更新清单，失败时回退到 GitHub。"""
     
     GITHUB_API_URL = "https://api.github.richqaq.cn/repos/RICHQAQ/PasteMD/releases/latest"
+    OFFICIAL_API_URL = "https://api.github.com/repos/RICHQAQ/PasteMD/releases/latest"
     TIMEOUT = 5  # 超时时间（秒）
-    PRERANK = {"dev": 0, "rc": 1, "final": 2}
+    PRERANK = {"dev": 0, "alpha": 1, "beta": 2, "rc": 3, "final": 4}
     
-    def __init__(self, current_version: str):
+    def __init__(self, current_version: str, manifest_url: str = DEFAULT_MANIFEST_URL,
+                 channel: str = DEFAULT_UPDATE_CHANNEL):
         """
         初始化版本检查器
         
@@ -27,6 +30,8 @@ class VersionChecker:
             current_version: 当前应用版本号
         """
         self.current_version = current_version
+        self.manifest_url = manifest_url
+        self.channel = channel
     
     def check_update(self) -> Optional[Dict[str, Any]]:
         """
@@ -46,8 +51,8 @@ class VersionChecker:
             if not latest_info:
                 return None
             
-            latest_version = latest_info.get("tag_name", "").lstrip("v")
-            if not latest_version:
+            latest_version = latest_info.get("tag_name", "").lstrip("vV")
+            if not valid_version(latest_version):
                 log("Failed to parse latest version from GitHub")
                 return None
             
@@ -58,7 +63,9 @@ class VersionChecker:
                     "latest_version": latest_version,
                     "current_version": self.current_version,
                     "release_url": latest_info.get("html_url", ""),
-                    "release_notes": latest_info.get("body", "暂无发布说明")[:200]  # 限制长度
+                    "release_notes": latest_info.get("body") or "",
+                    "assets": latest_info.get("assets") or [],
+                    "manifest_url": self.manifest_url,
                 }
             else:
                 log(f"Already on latest version: {self.current_version}")
@@ -79,11 +86,35 @@ class VersionChecker:
         优先尝试直连（不使用任何代理），如果失败，再回退到使用系统代理。
         """
         self._prepare_ssl_environment()
+        if self.manifest_url:
+            from urllib.parse import urlparse
+            if urlparse(self.manifest_url).scheme == "https":
+                data = self._fetch_release_url(self.manifest_url)
+                if data:
+                    try:
+                        result = parse_manifest(data, self.manifest_url, self.channel)
+                        log(f"[update] Using R2 feed: {self.manifest_url}")
+                        return result
+                    except (ValueError, TypeError) as exc:
+                        log(f"[update] Invalid R2 feed, falling back: {exc}")
+            else:
+                log("[update] Ignoring non-HTTPS update feed")
+        if self.channel != "stable":
+            log("[update] Preview feed unavailable; not switching to a production release")
+            return None
+        for url in (self.GITHUB_API_URL, self.OFFICIAL_API_URL):
+            data = self._fetch_release_url(url)
+            if data and data.get("tag_name") and not data.get("draft") and not data.get("prerelease"):
+                return data
+        return None
+
+    def _fetch_release_url(self, url: str) -> Optional[Dict[str, Any]]:
         req = urllib.request.Request(
-            self.GITHUB_API_URL,
+            url,
             headers={
                 "User-Agent": f"PasteMD/{self.current_version}",
                 "version": self.current_version,
+                "Accept": "application/vnd.github+json",
             },
         )
 
@@ -92,21 +123,26 @@ class VersionChecker:
             try:
                 if not use_proxy:
                     # 先不使用代理
-                    log("Checking version (no proxy)...")
+                    log(f"[update] Checking {url} (direct)")
                     opener = urllib.request.build_opener(
                         urllib.request.ProxyHandler({})
                     )
                     response = opener.open(req, timeout=self.TIMEOUT)
                 else:
                     # 回退：使用系统代理 / 环境变量配置的代理
-                    log("Direct check failed, retrying with system proxy...")
+                    log(f"[update] Retrying {url} with system proxy")
                     response = urllib.request.urlopen(req, timeout=self.TIMEOUT)
 
                 with response:
                     if response.status == 200:
                         try:
-                            data = json.loads(response.read().decode("utf-8"))
-                            return data
+                            if response.geturl().split(":", 1)[0] != "https":
+                                raise ValueError("Non-HTTPS feed redirect")
+                            payload = response.read(1024 * 1024 + 1)
+                            if len(payload) > 1024 * 1024:
+                                raise ValueError("Update metadata exceeds 1 MiB")
+                            data = json.loads(payload.decode("utf-8"))
+                            return data if isinstance(data, dict) else None
                         except json.JSONDecodeError as e:
                             log(f"Failed to parse GitHub API response: {e}")
                             return None
@@ -235,7 +271,7 @@ class VersionChecker:
 
         pre_tag = None
         pre_num = 0
-        m = re.search(r"(?:^|[.\-_])?(dev|rc)\s*\.?\s*(\d*)\b", s)
+        m = re.search(r"(?:^|[.\-_])?(dev|alpha|beta|rc)\s*\.?\s*(\d*)\b", s)
         if m:
             pre_tag = m.group(1)
             pre_num = int(m.group(2) or 0)

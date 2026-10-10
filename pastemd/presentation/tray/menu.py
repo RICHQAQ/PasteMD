@@ -4,6 +4,7 @@ import os
 import subprocess
 import pystray
 import threading
+import time
 import webbrowser
 from typing import Optional
 
@@ -14,7 +15,8 @@ from ...config.paths import get_log_path, get_config_path
 from ...service.notification.manager import NotificationManager
 from ...utils.fs import ensure_dir, open_dir, open_file
 from ...utils.logging import log
-from ...utils.version_checker import VersionChecker
+from ...service.update import UpdateSession
+from ..update.dialog import UpdateDialog, session_status
 from ...utils.system_detect import is_windows, is_macos
 from ...i18n import t, iter_languages, get_language, set_language, get_language_label, get_no_app_action_map
 from .icon import create_status_icon
@@ -39,9 +41,12 @@ class TrayMenuManager:
         self.restart_hotkey_callback = None  # 将由外部设置
         self.pause_hotkey_callback = None  # 暂停热键监听
         self.resume_hotkey_callback = None  # 恢复热键监听
-        self.version_checker = None  # 将由外部设置或按需创建
-        self.latest_version = None  # 存储最新版本号
-        self.latest_release_url = None  # 存储最新版本的下载链接
+        self.update_dialog = None
+        self.update_session = UpdateSession(app_state.config, self._refresh_update_ui, self._finish_update)
+        self._updates_started = False
+        self._quitting = False
+        self._last_update_state = "idle"
+        self._last_tray_refresh = 0.0
         self.hotkey_dialog = None
         self.settings_dialog = None
     
@@ -98,21 +103,17 @@ class TrayMenuManager:
                 enabled=False
             ),
         ]
-        if self.latest_version:
-            version_menu_items.append(
-                pystray.MenuItem(
-                    t("tray.menu.new_version", version=self.latest_version),
-                    self._on_open_release_page,
-                    enabled=True
-                )
-            )
-        else:
-            version_menu_items.append(
-                pystray.MenuItem(
-                    t("tray.menu.check_update"),
-                    self._on_check_update
-                )
-            )
+        session = self.update_session
+        if session.state != "idle":
+            version_menu_items.append(pystray.MenuItem(
+                lambda item: self._update_menu_text(), self._on_show_update,
+            ))
+        version_menu_items.append(pystray.MenuItem(
+            t("tray.menu.check_update"), self._on_check_update,
+            enabled=not session.busy and session.prepared is None,
+        ))
+        if session.state in {"downloading", "preparing", "ready"}:
+            version_menu_items.append(pystray.MenuItem(t("update.cancel"), self._on_cancel_update))
 
         return pystray.Menu(
             *normal_menu_items,
@@ -484,91 +485,102 @@ class TrayMenuManager:
         )
         self.notification_manager.notify("PasteMD", status, ok=True)
     
-    def _on_check_update(self, icon, item):
-        """检查更新"""
-        # 在后台线程中检查更新，避免阻塞 UI
-        def check_in_background():
-            try:
-                # 导入版本号
-                from ... import __version__
-                
-                checker = VersionChecker(__version__)
-                result = checker.check_update()
-                
-                if result is None:
-                    # 网络错误或检查失败
-                    log("Version check failed - network error")
-                    self.notification_manager.notify(
-                        f"PasteMD - {t('tray.update.title_failure')}",
-                        t("tray.update.network_error"),
-                        ok=False
-                    )
-                elif result.get("has_update"):
-                    latest_version = result.get("latest_version")
-                    release_url = result.get("release_url")
-                    
-                    # 使用 update_version_info 方法更新版本信息并重新绘制菜单
-                    self.update_version_info(icon, latest_version, release_url)
-                    
-                    # 通知用户有新版本，并自动打开下载页面
-                    message = t("tray.update.opening_release", version=latest_version)
-                    self.notification_manager.notify(
-                        f"PasteMD - {t('tray.update.title_new_version')}",
-                        message,
-                        ok=True
-                    )
-                    
-                    # 自动打开下载页面
-                    try:
-                        webbrowser.open(release_url)
-                    except Exception as e:
-                        log(f"Failed to open browser: {e}")
-                    
-                    log(f"New version available: {latest_version}")
-                    log(f"Download URL: {release_url}")
-                else:
-                    # 无需更新，通知用户已是最新版本
-                    current_version = result.get("current_version")
-                    log(f"Already on latest version: {current_version}")
-                    self.notification_manager.notify(
-                        f"PasteMD - {t('tray.update.title_latest')}",
-                        t("tray.update.latest_version", version=current_version),
-                        ok=True
-                    )
-            except Exception as e:
-                error_text = str(e)
-                short_error = error_text if len(error_text) <= 15 else error_text[:12] + "..."
-                self.notification_manager.notify(
-                    f"PasteMD - {t('tray.update.title_unexpected_error')}",
-                    t("tray.update.error_with_message", error=short_error),
-                    ok=False
-                )
-                log(f"Error checking update: {e}")
-        
-        # 启动后台线程
-        thread = threading.Thread(target=check_in_background, daemon=True)
-        thread.start()
-    
-    def _on_open_release_page(self, icon, item):
-        """打开发布页面"""
-        if self.latest_release_url:
-            try:
-                webbrowser.open(self.latest_release_url)
-                log(f"Opening release page: {self.latest_release_url}")
-            except Exception as e:
-                log(f"Failed to open browser: {e}")
-                self.notification_manager.notify(
-                    "PasteMD",
-                    t("tray.error.open_release_page"),
-                    ok=False
-                )
+    def _queue_update_ui(self, callback):
+        ui_queue = getattr(app_state, "ui_queue", None)
+        if ui_queue is not None:
+            ui_queue.put(callback)
 
-    def update_version_info(self, icon, latest_version: str, release_url: str):
-        """更新最新版本信息"""
-        self.latest_version = latest_version
-        self.latest_release_url = release_url
-        icon.menu = self.build_menu()
-    
+    def start_updates(self):
+        """Called once on the main thread after Tk has been initialized."""
+        if self._updates_started:
+            return
+        self._updates_started = True
+
+        def poll():
+            if self._quitting:
+                return
+            self.update_session.poll()
+            app_state.root.after(250, poll)
+
+        app_state.root.after(250, poll)
+        self.update_session.check(manual=False)
+
+    def _update_menu_text(self):
+        session = self.update_session
+        if session.state == "available" and session.release:
+            return t("tray.menu.new_version", version=session.release["latest_version"])
+        if session.state == "failed":
+            return t("update.tray.failed")
+        return session_status(session)
+
+    def _refresh_update_ui(self):
+        session = self.update_session
+        changed_state = self._last_update_state != session.state
+        now = time.monotonic()
+        icon = getattr(app_state, "icon", None)
+        if icon and (changed_state or now - self._last_tray_refresh >= 1.0):
+            self._last_tray_refresh = now
+            try:
+                icon.menu = self.build_menu()
+                icon.update_menu()
+            except Exception as exc:
+                log(f"[update] Tray refresh failed: {exc}")
+        if self.update_dialog:
+            self.update_dialog.render()
+        self._last_update_state = session.state
+        if changed_state and session.state == "failed":
+            app_state.ui_block_hotkeys = False
+        if changed_state and session.state in {"available", "latest", "failed", "ready"}:
+            if session.manual_check and session.state in {"available", "latest", "failed"}:
+                self._show_update_dialog()
+            if session.state == "ready":
+                self.notification_manager.notify("PasteMD", t("update.status.ready"), ok=True)
+            elif session.state == "failed" and session.manual_check:
+                self.notification_manager.notify("PasteMD", t("update.error." + session.error_key), ok=False)
+
+    def _on_check_update(self, icon, item):
+        self._queue_update_ui(lambda: self.update_session.check(manual=True))
+
+    def _on_show_update(self, icon, item):
+        def show():
+            self.update_session.manual_check = True
+            self._show_update_dialog()
+        self._queue_update_ui(show)
+
+    def _on_cancel_update(self, icon, item):
+        self._queue_update_ui(self.update_session.cancel)
+
+    def _show_update_dialog(self):
+        if self._quitting:
+            return
+        if self.update_dialog:
+            activate_app()
+            self.update_dialog.focus()
+            return
+        begin_ui_session()
+
+        def closed():
+            self.update_dialog = None
+            end_ui_session()
+
+        try:
+            self.update_dialog = UpdateDialog(app_state.root, self.update_session, closed, self._install_update)
+            activate_app()
+        except Exception as exc:
+            end_ui_session()
+            log(f"[update] Failed to open update window: {exc}")
+
+    def _install_update(self):
+        if app_state.is_running():
+            from tkinter import messagebox
+            messagebox.showinfo("PasteMD", t("update.wait_for_task"), parent=self.update_dialog.root)
+            return
+        app_state.ui_block_hotkeys = True
+        self.update_session.install()
+
+    def _finish_update(self):
+        self._on_quit(getattr(app_state, "icon", None), None)
+
     def _on_open_about_page(self, icon, item):
         """打开关于页面"""
         # macOS 使用专门的介绍页面
@@ -588,23 +600,23 @@ class TrayMenuManager:
             )
     
     def _on_quit(self, icon, item):
-        """退出应用程序"""
-        icon.stop()
-        
-        # 设置退出事件（AppState 中已经声明了这个属性）
+        """Keep the UI alive while cancellation releases a download/mounted DMG."""
+        self._queue_update_ui(lambda: self._quit_when_update_stops(icon))
+
+    def _quit_when_update_stops(self, icon):
+        self._quitting = True
+        session = self.update_session
+        session.cancel_event.set()
+        if session.worker and session.worker.is_alive():
+            app_state.root.after(100, lambda: self._quit_when_update_stops(icon))
+            return
+        session.shutdown()
+        if icon:
+            icon.stop()
         if app_state.quit_event is None:
-            import threading
             app_state.quit_event = threading.Event()
-        
         app_state.quit_event.set()
-        
-        # 发送退出信号到主程序
-        if getattr(app_state, "ui_queue", None):
-            try:
-                app_state.ui_queue.put(None)
-            except Exception as e:
-                log(f"Failed to send quit signal: {e}")
-    
+
     def _save_config(self):
         """保存配置"""
         try:

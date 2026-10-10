@@ -5,6 +5,7 @@ import sys
 from typing import Dict, Any
 from .paths import resource_path
 from ..utils.system_detect import is_macos, is_windows
+from ..utils.update_manifest import DEFAULT_MANIFEST_URL, DEFAULT_UPDATE_CHANNEL
 
 
 def find_pandoc() -> str:
@@ -55,6 +56,8 @@ RESERVED_APPS = {"word", "wps", "excel", "wps_excel"}
 
 
 DEFAULT_CONFIG: Dict[str, Any] = {
+    "update_manifest_url": DEFAULT_MANIFEST_URL,
+    "update_channel": DEFAULT_UPDATE_CHANNEL,
     "hotkey": "<ctrl>+<shift>+b",
     "pandoc_path": find_pandoc(),
     "reference_docx": None,

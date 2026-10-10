@@ -2,6 +2,7 @@
 #ifndef MyAppVersion
 #define MyAppVersion ExecAndGetFirstLine("python", "-c ""from pastemd import __version__; print(__version__)""", SourcePath)
 #endif
+#define MyAppNumericVersion ExecAndGetFirstLine("python", "-c ""import re; from pastemd import __version__; print(re.match(r'\d+(?:\.\d+)*', __version__).group())""", SourcePath)
 #define MyAppPublisher "RichQAQ"
 #define MyAppExeName "PasteMD.exe"
 ; AppUserModelID 用于 Win11 通知归属与图标
@@ -20,6 +21,7 @@
 AppId={{4f3f2b18-55a3-4f40-98f6-d01a3e3e0220}}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+VersionInfoVersion={#MyAppNumericVersion}
 AppPublisher={#MyAppPublisher}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes

@@ -5,8 +5,13 @@ on:
   push:
     branches:
       - "ci/**"
+      - "codex/r2-updater"
     tags:
       - "v*"
+
+concurrency:
+  group: ${{ github.ref == 'refs/heads/codex/r2-updater' && 'pastemd-r2-test' || 'pastemd-release' }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -17,8 +22,16 @@ env:
 
 jobs:
   build-macos:
-    name: Build macOS DMG
-    runs-on: macos-latest
+    name: Build macOS DMG (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x86_64
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout
@@ -29,6 +42,19 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+
+      - name: Verify release version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: python scripts/publish_update.py --check-version
+
+      - name: Prepare isolated R2 test build
+        if: github.ref == 'refs/heads/codex/r2-updater'
+        env:
+          TEST_RUN_NUMBER: ${{ github.run_number }}
+          TEST_PUBLIC_BASE: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.cn' }}
+        run: python scripts/prepare_test_build.py --run-number "$TEST_RUN_NUMBER" --public-base "$TEST_PUBLIC_BASE"
 
       - name: Install Python dependencies
         run: |
@@ -170,7 +196,7 @@ jobs:
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PasteMD-macOS
+          name: PasteMD-macOS-${{ matrix.arch }}
           path: dist_dmg/*.dmg
           if-no-files-found: error
 
@@ -187,6 +213,20 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
+
+      - name: Verify release version
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+        run: python scripts/publish_update.py --check-version
+
+      - name: Prepare isolated R2 test build
+        if: github.ref == 'refs/heads/codex/r2-updater'
+        shell: pwsh
+        env:
+          TEST_RUN_NUMBER: ${{ github.run_number }}
+          TEST_PUBLIC_BASE: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.cn' }}
+        run: python scripts/prepare_test_build.py --run-number "$env:TEST_RUN_NUMBER" --public-base "$env:TEST_PUBLIC_BASE"
 
       - name: Install Python dependencies
         shell: pwsh
@@ -328,6 +368,69 @@ jobs:
           path: Output/*.exe
           if-no-files-found: error
 
+  publish-r2-test:
+    name: Publish isolated R2 preview
+    needs: [build-macos, build-windows]
+    if: github.ref == 'refs/heads/codex/r2-updater'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      TEST_RUN_NUMBER: ${{ github.run_number }}
+      TEST_PUBLIC_BASE: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.cn' }}
+      R2_PUBLIC_BASE_URL: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.cn' }}
+      R2_KEY_PREFIX: pastemd-test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Prepare matching preview metadata
+        run: python scripts/prepare_test_build.py --run-number "$TEST_RUN_NUMBER" --public-base "$TEST_PUBLIC_BASE"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: PasteMD-*
+          path: artifacts
+      - name: Validate preview manifest
+        run: python scripts/publish_update.py --publish-preview --no-github-fallback --dry-run
+      - name: Install R2 publishing dependencies
+        if: vars.R2_TEST_ENABLED == 'true'
+        run: python -m pip install 'boto3>=1.36,<2'
+      - name: Upload preview packages to test bucket
+        if: vars.R2_TEST_ENABLED == 'true'
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_TEST_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_TEST_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_TEST_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_TEST_BUCKET }}
+        run: python scripts/publish_update.py --publish-preview --no-github-fallback
+      - name: Verify public preview feed and download URLs
+        if: vars.R2_TEST_ENABLED == 'true'
+        run: python scripts/verify_update_feed.py --manifest update-manifest.json --feed-url "$TEST_PUBLIC_BASE/pastemd-test/latest-preview.json"
+      - name: Save preview manifest
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PasteMD-test-update-manifest
+          path: update-manifest.json
+          if-no-files-found: ignore
+      - name: Explain next test step
+        env:
+          R2_TEST_ENABLED: ${{ vars.R2_TEST_ENABLED }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          data = json.loads(Path("update-manifest.json").read_text())
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
+              summary.write(f"## Isolated R2 test: {data['version']}\n\n")
+              summary.write(f"Preview feed: {os.environ['TEST_PUBLIC_BASE']}/pastemd-test/latest-preview.json\n\n")
+              if os.environ.get("R2_TEST_ENABLED") != "true":
+                  summary.write("**R2 upload was skipped.** Configure R2_TEST_* secrets/variables, set R2_TEST_ENABLED=true, then start a new workflow run.\n\n")
+              summary.write("Install this build as the baseline in a separate system user/VM. Start a new workflow run to publish a higher dev version, then update from the tray. Test clients require update_channel=preview and the preview feed URL.\n\n")
+              summary.write("No GitHub Release or production latest.json was published. Start a new run rather than re-running an old run: installer bytes under one version are immutable.\n")
+          PY
+
   release:
     name: Publish GitHub release
     needs:
@@ -359,7 +462,55 @@ jobs:
 
           if gh release view "$TAG_NAME" >/dev/null 2>&1; then
             gh release upload "$TAG_NAME" "${files[@]}" --clobber
-            gh release edit "$TAG_NAME" --prerelease
+            if [[ "$TAG_NAME" =~ (dev|alpha|beta|rc) ]]; then
+              gh release edit "$TAG_NAME" --prerelease
+            else
+              gh release edit "$TAG_NAME" --prerelease=false --latest
+            fi
           else
-            gh release create "$TAG_NAME" "${files[@]}" --title "$TAG_NAME" --generate-notes --prerelease
+            if [[ "$TAG_NAME" =~ (dev|alpha|beta|rc) ]]; then
+              gh release create "$TAG_NAME" "${files[@]}" --title "$TAG_NAME" --generate-notes --prerelease
+            else
+              gh release create "$TAG_NAME" "${files[@]}" --title "$TAG_NAME" --generate-notes --latest
+            fi
           fi
+
+      - name: Export release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: gh release view "$TAG_NAME" --json body --jq '.body' > release-notes.txt
+
+      - name: Set up Python for R2 publisher
+        if: vars.R2_ENABLED == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install R2 publishing dependencies
+        if: vars.R2_ENABLED == 'true'
+        run: python -m pip install 'boto3>=1.36,<2'
+
+      - name: Publish packages and update manifest to R2
+        if: vars.R2_ENABLED == 'true'
+        env:
+          TAG_NAME: ${{ github.ref_name }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_BUCKET: ${{ vars.R2_BUCKET }}
+          R2_PUBLIC_BASE_URL: ${{ vars.R2_PUBLIC_BASE_URL }}
+          R2_KEY_PREFIX: ${{ vars.R2_KEY_PREFIX || 'pastemd' }}
+        run: python scripts/publish_update.py --notes release-notes.txt
+
+      - name: Save update manifest for inspection
+        if: vars.R2_ENABLED == 'true' && always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PasteMD-update-manifest
+          path: update-manifest.json
+          if-no-files-found: ignore
+
+      - name: Explain R2 opt-in
+        if: vars.R2_ENABLED != 'true'
+        run: echo 'R2 publishing is disabled. Configure GitHub variables/secrets as described in docs/md/UPDATES.md, then set R2_ENABLED=true.'
