@@ -53,7 +53,7 @@ jobs:
         if: github.ref == 'refs/heads/codex/r2-updater'
         env:
           TEST_RUN_NUMBER: ${{ github.run_number }}
-          TEST_PUBLIC_BASE: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.cn' }}
+          TEST_PUBLIC_BASE: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.top' }}
         run: python scripts/prepare_test_build.py --run-number "$TEST_RUN_NUMBER" --public-base "$TEST_PUBLIC_BASE"
 
       - name: Install Python dependencies
@@ -225,7 +225,7 @@ jobs:
         shell: pwsh
         env:
           TEST_RUN_NUMBER: ${{ github.run_number }}
-          TEST_PUBLIC_BASE: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.cn' }}
+          TEST_PUBLIC_BASE: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.top' }}
         run: python scripts/prepare_test_build.py --run-number "$env:TEST_RUN_NUMBER" --public-base "$env:TEST_PUBLIC_BASE"
 
       - name: Install Python dependencies
@@ -377,8 +377,8 @@ jobs:
       contents: read
     env:
       TEST_RUN_NUMBER: ${{ github.run_number }}
-      TEST_PUBLIC_BASE: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.cn' }}
-      R2_PUBLIC_BASE_URL: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.cn' }}
+      TEST_PUBLIC_BASE: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.top' }}
+      R2_PUBLIC_BASE_URL: ${{ vars.R2_TEST_PUBLIC_BASE_URL || 'https://download-test.richqaq.top' }}
       R2_KEY_PREFIX: pastemd-test
     steps:
       - uses: actions/checkout@v4
