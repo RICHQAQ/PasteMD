@@ -149,7 +149,7 @@ pastemd/releases/v0.1.7.7/PasteMD-0.1.7.7-x86_64.dmg
 
 ## 7. 测试分支自动打包和 R2 上传
 
-`codex/r2-updater` 的 push 和手动运行都会打包 Windows、macOS arm64/x86_64。CI 在临时 checkout 中将版本变为“源码数字版本最后一段加一 + dev + workflow run number”，例如源码 `0.1.7.6` 的第 123 次工作流生成 `0.1.7.7dev123`。源文件中的正式版本不提交修改；新工作流生成更高版本，方便测试 A → B。
+`codex/r2-updater` 仅手动运行才打包 Windows、macOS arm64/x86_64；推送这个分支不触发构建，测试需用户明确允许后开始。CI 在临时 checkout 中将版本变为“源码数字版本最后一段加一 + dev + workflow run number”，例如源码 `0.1.7.6` 的第 123 次工作流生成 `0.1.7.7dev123`。源文件中的正式版本不提交修改；新工作流生成更高版本，方便测试 A → B。
 
 测试包内置 `preview` 通道，更新地址是测试公开地址加 `/pastemd-test/latest-preview.json`。这个通道只接受预览清单；请求失败时不回退到正式 GitHub 版本。测试任务不创建 GitHub Release，也不更新任何正式版 `latest.json`。
 
@@ -179,7 +179,7 @@ pastemd/releases/v0.1.7.7/PasteMD-0.1.7.7-x86_64.dmg
 
 ### 7.3 完整 A → B 测试
 
-1. 完成上述配置后推送测试分支，或在 Actions 的 **Build release packages → Run workflow** 选择 `codex/r2-updater`。不要创建正式版本标签。
+1. 完成上述配置并明确允许测试后，在 Actions 的 **Build release packages → Run workflow** 选择 `codex/r2-updater`。推送分支不会触发构建。不要创建正式版本标签。
 2. 三个平台构建和 **Publish isolated R2 preview** 完成后，检查 summary、公开清单版本和 Actions artifacts。安装第一轮包作为 A；旧的正式客户端没有更新代码，不能作为这个测试的基线。
 3. 在独立系统用户或 VM 测试，避免覆盖日常使用的应用及配置。测试包与正式版有相同 Bundle ID / Inno AppId，安装位置和配置可能共享。配置文件默认值会被已有用户配置覆盖，因此检查 `update_channel=preview` 和 `update_manifest_url=<测试公开地址>/pastemd-test/latest-preview.json`。macOS 配置在 `~/Library/Application Support/PasteMD/config.json`，Windows 在 `%APPDATA%\\PasteMD\\config.json`。
 4. **启动一次新的 workflow run** 生成 B。不要使用 Re-run 覆盖同一个 dev 版本的不同字节：版本路径不可变，重建出的签名/时间戳不同会被拒绝。
