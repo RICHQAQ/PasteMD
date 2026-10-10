@@ -24,6 +24,7 @@ from ..config.paths import get_log_dir
 from .version_checker import VersionChecker
 from .update_manifest import trusted_download_url
 from .logging import log
+from .https import build_https_opener
 
 
 # Keep the existing install identity: installer.iss escapes the opening brace
@@ -112,8 +113,7 @@ def download_asset(asset: UpdateAsset, destination: Path, cancel: threading.Even
                 try:
                     mode = "system proxy" if use_proxy else "direct"
                     log(f"[update] Downloading {url}, mode={mode}, expected={asset.size}")
-                    opener = (urllib.request.build_opener() if use_proxy else
-                              urllib.request.build_opener(urllib.request.ProxyHandler({})))
+                    opener = build_https_opener(use_proxy)
                     request = urllib.request.Request(url, headers={"User-Agent": "PasteMD-Updater"})
                     digest = hashlib.sha256()
                     received = 0

@@ -335,6 +335,7 @@ jobs:
             --include-data-dir="%CD%\pastemd\lua=lua" ^
             --include-data-dir="%CD%\third_party\pandoc\win=pandoc" ^
             --include-module=plyer.platforms.win.notification ^
+            --include-package=truststore ^
             --enable-plugin=tk-inter
 
       - name: Ensure bundled Pandoc is in Nuitka dist

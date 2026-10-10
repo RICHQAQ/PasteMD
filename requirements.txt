@@ -1,4 +1,5 @@
 psutil
+truststore>=0.10.4,<1
 pyperclip
 pynput
 pystray @ git+https://github.com/RICHQAQ/pystray.git@master

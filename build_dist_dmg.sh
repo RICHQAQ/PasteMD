@@ -138,6 +138,7 @@ NUITKA_CMD=(
   --macos-app-name="$APP_NAME"
   --macos-app-icon=assets/icons/logo.icns
   --enable-plugin=tk-inter
+  --include-package=truststore
   --output-dir="$OUT_DIR"
   --output-filename="$APP_NAME"
 

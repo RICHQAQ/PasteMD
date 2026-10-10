@@ -9,6 +9,7 @@ import urllib.request
 from typing import Optional, Dict, Any, Tuple
 
 from .logging import log
+from .https import build_https_opener
 from .system_detect import is_windows
 from .update_manifest import DEFAULT_MANIFEST_URL, DEFAULT_UPDATE_CHANNEL, parse_manifest, valid_version
 
@@ -124,14 +125,12 @@ class VersionChecker:
                 if not use_proxy:
                     # 先不使用代理
                     log(f"[update] Checking {url} (direct)")
-                    opener = urllib.request.build_opener(
-                        urllib.request.ProxyHandler({})
-                    )
-                    response = opener.open(req, timeout=self.TIMEOUT)
                 else:
                     # 回退：使用系统代理 / 环境变量配置的代理
                     log(f"[update] Retrying {url} with system proxy")
-                    response = urllib.request.urlopen(req, timeout=self.TIMEOUT)
+
+                opener = build_https_opener(use_proxy)
+                response = opener.open(req, timeout=self.TIMEOUT)
 
                 with response:
                     if response.status == 200:
